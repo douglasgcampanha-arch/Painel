@@ -224,7 +224,7 @@ dialog#astrea-dlg::backdrop{background:rgba(0,0,0,.45)}
     </div>
     <label>Título<input id="as-titulo" maxlength="200" required></label>
     <label>Descrição<textarea id="as-desc" rows="10"></textarea></label>
-    <p class="c" id="as-nota">Confira os dados. A data sugerida é uma estimativa; ajuste se necessário.</p>
+    <p class="c" id="as-nota">Responsável: você · lembrete <span id="as-lemb">2</span> dias antes do vencimento. Confira os dados; a data sugerida é uma estimativa.</p>
     <div class="actions">
       <button class="btn" value="cancel" formnovalidate>Cancelar</button>
       <button class="btn primary" id="as-enviar" value="ok">Enviar</button>
@@ -629,6 +629,7 @@ const TOKEN = /*__TOKEN__*/"";
     preparoAtual = prep;
     $("#as-proc").value = prep.processo; $("#as-tipo").value = prep.tipo; $("#as-data").value = isoBR(prep.data);
     $("#as-titulo").value = prep.titulo; $("#as-desc").value = prep.descricao;
+    $("#as-lemb").textContent = D.astrea_lembrete ?? 2;
     $("#astrea-aviso").innerHTML = SERVIDO ? "" : `<div class="banner warn">Para enviar, abra o painel pelo endereço <b>http://127.0.0.1:${location.port || 8765}</b> (atalho: atualizar_agora.command).</div>`;
     $("#as-enviar").disabled = !SERVIDO;
     $("#astrea-dlg").showModal();

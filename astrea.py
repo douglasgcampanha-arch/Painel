@@ -134,7 +134,10 @@ def diagnostico(cfg: dict) -> Path:
 
 
 def enviar(item: dict, cfg: dict, log) -> str:
-    """Cria a tarefa/prazo no Astrea. Calibração pendente do diagnóstico das telas."""
+    """Cria o prazo no Astrea vinculado ao processo (pelo número CNJ).
+    Padrões (config.json > astrea): responsável = usuário logado (campo 'responsavel' vazio)
+    e lembrete 'lembrete_dias_antes' dias antes do vencimento (padrão 2).
+    Calibração pendente do diagnóstico das telas."""
     raise RuntimeError("Robô do Astrea ainda não calibrado: rode configurar_astrea.command "
                        "(diagnóstico das telas) e envie o arquivo estrutura.json para calibração.")
 

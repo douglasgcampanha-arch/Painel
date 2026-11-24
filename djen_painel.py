@@ -295,6 +295,7 @@ def gerar_painel(registros: dict, estado: dict, cfg: dict, carteira: dict | None
         "analise_ia_ativa": bool(cfg.get("analise_ia", {}).get("ativo")),
         "astrea_ativo": bool(cfg.get("astrea", {}).get("ativo")),
         "astrea_tipo_padrao": cfg.get("astrea", {}).get("tipo_padrao", "prazo"),
+        "astrea_lembrete": int(cfg.get("astrea", {}).get("lembrete_dias_antes", 2)),
         "datajud": {
             "ativo": bool(cfg.get("datajud_ativo", True)),
             "ultima_execucao": estado.get("datajud_ultima_execucao", ""),

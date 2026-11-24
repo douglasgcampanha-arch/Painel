@@ -41,6 +41,8 @@
   "astrea": {
     "ativo": false,
     "url": "https://astrea.net.br",
-    "tipo_padrao": "prazo"
+    "tipo_padrao": "prazo",
+    "responsavel": "",
+    "lembrete_dias_antes": 2
   }
 }
