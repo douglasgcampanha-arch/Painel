@@ -290,7 +290,7 @@ def main() -> int:
     if estado.get("ultimo_sucesso"):
         inicio = hoje - timedelta(days=int(cfg.get("dias_sobreposicao", 3)))
     else:
-        inicio = hoje - timedelta(days=int(cfg.get("dias_carga_inicial", 30)))
+        inicio = hoje - timedelta(days=int(cfg.get("janela_dias", 7)))
 
     novas = 0
     try:
@@ -312,6 +312,10 @@ def main() -> int:
         estado["ultimo_sucesso"] = estado["ultima_execucao"]
         estado["ultimo_erro"] = ""
         estado["novas_ultima_coleta"] = novas
+        # mantém somente a janela configurada (padrão: últimos 7 dias)
+        corte = (hoje - timedelta(days=int(cfg.get("janela_dias", 7)))).isoformat()
+        for k in [k for k, r in registros.items() if (r.get("disponibilizacao") or "") < corte]:
+            del registros[k]
         gravar_json(ARQ_DADOS, registros)
         log(f"Coleta concluída: {novas} nova(s); {len(registros)} no histórico")
         codigo = 0
@@ -320,8 +324,28 @@ def main() -> int:
         log(f"ERRO: {e}")
         codigo = 1
 
-    # ---- DataJud: movimentações da carteira (todos os sistemas: PJe, eproc, e-SAJ, Projudi...)
+    # ---- eproc TJSP (login com certificado; somente leitura)
+    eproc = ler_json(ARQ_EPROC, {})
+    ecfg = cfg.get("eproc_tjsp", {})
+    if ecfg.get("ativo"):
+        agora = datetime.now()
+        ult = eproc.get("ultima_execucao")
+        vencido = not ult or agora - datetime.fromisoformat(ult) >= timedelta(hours=float(ecfg.get("intervalo_horas", 2)))
+        no_horario = int(ecfg.get("horario_inicio", 7)) <= agora.hour < int(ecfg.get("horario_fim", 21))
+        if vencido and no_horario and not eproc.get("precisa_2fa"):
+            try:
+                import eproc_tjsp
+                eproc = eproc_tjsp.coletar(cfg, log)
+            except ImportError as e:
+                eproc["erro"] = f"Playwright não instalado ({e}). Rode instalar_mac.command."
+                log(f"ERRO eproc TJSP: {eproc['erro']}")
+
+    # painel parcial já atualizado antes do DataJud (que pode demorar)
     carteira: dict = ler_json(ARQ_CARTEIRA, {})
+    gravar_json(ARQ_ESTADO, estado)
+    gerar_painel(registros, estado, cfg, carteira, eproc)
+
+    # ---- DataJud: movimentações da carteira (todos os sistemas: PJe, eproc, e-SAJ, Projudi...)
     if cfg.get("datajud_ativo", True):
         numeros = {}
         for r in registros.values():
@@ -339,22 +363,6 @@ def main() -> int:
             log(f"ERRO DataJud: {e}")
         estado["datajud_ultima_execucao"] = datetime.now().isoformat(timespec="seconds")
         gravar_json(ARQ_CARTEIRA, carteira)
-
-    # ---- eproc TJSP (login com certificado; somente leitura)
-    eproc = ler_json(ARQ_EPROC, {})
-    ecfg = cfg.get("eproc_tjsp", {})
-    if ecfg.get("ativo"):
-        agora = datetime.now()
-        ult = eproc.get("ultima_execucao")
-        vencido = not ult or agora - datetime.fromisoformat(ult) >= timedelta(hours=float(ecfg.get("intervalo_horas", 2)))
-        no_horario = int(ecfg.get("horario_inicio", 7)) <= agora.hour < int(ecfg.get("horario_fim", 21))
-        if vencido and no_horario and not eproc.get("precisa_2fa"):
-            try:
-                import eproc_tjsp
-                eproc = eproc_tjsp.coletar(cfg, log)
-            except ImportError as e:
-                eproc["erro"] = f"Playwright não instalado ({e}). Rode instalar_mac.command."
-                log(f"ERRO eproc TJSP: {eproc['erro']}")
 
     gravar_json(ARQ_ESTADO, estado)
     gerar_painel(registros, estado, cfg, carteira, eproc)

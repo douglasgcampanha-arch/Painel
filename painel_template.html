@@ -133,7 +133,7 @@ mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
     <button class="kpi hl" data-preset="pend"><div class="n" id="k-pend">0</div><div class="l">Pendentes de análise</div></button>
     <button class="kpi" data-preset="hoje"><div class="n" id="k-hoje">0</div><div class="l">Disponibilizadas hoje</div></button>
     <button class="kpi" data-preset="7d"><div class="n" id="k-7d">0</div><div class="l">Últimos 7 dias</div></button>
-    <button class="kpi" data-preset="all"><div class="n" id="k-all">0</div><div class="l">Total no histórico</div></button>
+    <button class="kpi" data-preset="all"><div class="n" id="k-all">0</div><div class="l">Total (7 dias)</div></button>
   </section>
 
   <section class="filters" aria-label="Filtros">
@@ -146,10 +146,7 @@ mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
     </select>
     <select id="f-per">
       <option value="0">Hoje</option>
-      <option value="7">7 dias</option>
-      <option value="30" selected>30 dias</option>
-      <option value="90">90 dias</option>
-      <option value="all">Todo o período</option>
+      <option value="7" selected>Últimos 7 dias</option>
     </select>
   </section>
   <div class="count"><span id="count"></span><span><button class="linkbtn" id="mark-all">Marcar exibidas como tratadas</button></span></div>
@@ -232,7 +229,7 @@ const DADOS = /*__DADOS__*/null;
   // filtros persistidos
   const fs = store.get(KEYF, {});
   if (fs.status) $("#f-status").value = fs.status;
-  if (fs.per) $("#f-per").value = fs.per;
+  if (fs.per === "0" || fs.per === "7") $("#f-per").value = fs.per;
   if (fs.trib && tribs.includes(fs.trib)) $("#f-trib").value = fs.trib;
 
   function kpis(){
@@ -326,10 +323,10 @@ const DADOS = /*__DADOS__*/null;
   document.querySelectorAll(".kpi").forEach(k => k.addEventListener("click", () => {
     const p = k.dataset.preset;
     $("#f-q").value = ""; $("#f-trib").value = "";
-    if (p === "pend"){ $("#f-status").value = "pend"; $("#f-per").value = "all"; }
+    if (p === "pend"){ $("#f-status").value = "pend"; $("#f-per").value = "7"; }
     if (p === "hoje"){ $("#f-status").value = "all"; $("#f-per").value = "0"; }
     if (p === "7d"){ $("#f-status").value = "all"; $("#f-per").value = "7"; }
-    if (p === "all"){ $("#f-status").value = "all"; $("#f-per").value = "all"; }
+    if (p === "all"){ $("#f-status").value = "all"; $("#f-per").value = "7"; }
     render();
   }));
   let tq; $("#f-q").addEventListener("input", () => { clearTimeout(tq); tq = setTimeout(render, 150); });

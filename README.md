@@ -31,7 +31,7 @@ Arquivos de apoio: `atualizar_agora.command`, `eproc_primeiro_acesso.command` (r
 ## Como funciona
 
 - `djen_painel.py` consulta a API pública do DJEN (`comunicaapi.pje.jus.br`) pelas OABs de `config.json`, guarda o histórico em `dados/` sem duplicar e gera `painel.html`.
-- A primeira execução busca os últimos 30 dias. As seguintes buscam os últimos 3 dias, com sobreposição para não perder nada.
+- Busca e mantém somente as comunicações dos últimos 7 dias (`janela_dias` no `config.json`). A carteira do DataJud acompanha só os processos com intimação nesse período, mais os incluídos manualmente.
 - Se a coleta falhar, o painel mostra o erro e mantém o histórico já salvo.
 - `dados/` e `painel.html` ficam fora do Git, porque contêm dados de processos e clientes.
 
@@ -61,7 +61,7 @@ Linux/macOS: `crontab -e` e adicione `0 * * * * python3 /caminho/djen_painel.py`
 
 ## Configuração
 
-Em `config.json`, inclua outras OABs na lista `oabs` (por exemplo, colegas do escritório), processos avulsos em `processos`, e ajuste `dias_carga_inicial` e os parâmetros `datajud_*`. Para desligar o DataJud, use `"datajud_ativo": false`.
+Em `config.json`, inclua outras OABs na lista `oabs` (por exemplo, colegas do escritório), processos avulsos em `processos`, e ajuste `janela_dias` e os parâmetros `datajud_*`. Para desligar o DataJud, use `"datajud_ativo": false`.
 
 ## Observações
 

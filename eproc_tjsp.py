@@ -132,6 +132,7 @@ JS_SECAO_INTIMACOES = r"""
   bloco.querySelectorAll('a').forEach((a, i) => {
     const t = limpa(a.innerText);
     if (!/^\d+$/.test(t)) return;
+    if (!a.getClientRects().length || getComputedStyle(a).visibility === 'hidden') return; // ignora abas ocultas
     // rótulo = texto da linha/caixa onde está o número
     const linha = a.closest('tr, li, .card, .row, div') || a.parentElement;
     const rotulo = limpa((linha.innerText || '').replace(t, ''));
@@ -269,7 +270,11 @@ class ColetorEproc:
                                                for i in secao["itens"]]
             for it in secao["itens"]:
                 resultado.append({"base": aba or "SP", **it})
-        return resultado
+        # remove repetições (mesma base + categoria)
+        unicos = {}
+        for r in resultado:
+            unicos.setdefault((r["base"], r["categoria"]), r)
+        return list(unicos.values())
 
     def _ler_lista(self, contexto, pagina_painel, item) -> list[dict]:
         """Abre a lista de processos de uma categoria (link do número) numa aba nova e lê a tabela."""
@@ -330,12 +335,15 @@ class ColetorEproc:
                 self._login(pagina)
                 self._registrar_diag(pagina, "painel_advogado")
                 categorias = self._ler_secao(pagina)
-                itens = []
+                itens, vistos = [], set()
                 for c in categorias:
                     if c["quantidade"] <= 0:
                         continue
                     for linha in self._ler_lista(ctx, pagina, c):
-                        itens.append({"base": c["base"], "categoria": c["categoria"], **linha})
+                        chave = (c["base"], c["categoria"], linha["processo"])
+                        if chave not in vistos:
+                            vistos.add(chave)
+                            itens.append({"base": c["base"], "categoria": c["categoria"], **linha})
                     time.sleep(1.5)
             finally:
                 if self.diagnostico:

@@ -1,4 +1,5 @@
 {
+  "janela_dias": 7,
   "titular": "Dr. Douglas Gonçalves Campanhã",
   "oabs": [
     {
@@ -6,12 +7,10 @@
       "uf": "SP"
     }
   ],
-  "dias_carga_inicial": 30,
-  "dias_sobreposicao": 3,
   "datajud_ativo": true,
   "processos": [],
   "datajud_intervalo_horas": 6,
-  "datajud_max_por_execucao": 40,
+  "datajud_max_por_execucao": 15,
   "datajud_chave": "",
   "eproc_tjsp": {
     "ativo": false,
@@ -21,5 +20,6 @@
     "horario_fim": 21,
     "certificado_pem": "",
     "chave_pem": ""
-  }
+  },
+  "datajud_max_falhas_seguidas": 3
 }

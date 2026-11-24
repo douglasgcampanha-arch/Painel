@@ -52,7 +52,7 @@ echo
 read -r -p "2/4 Configurar o eproc TJSP com o certificado digital A1 agora? (s/n) " USAR_EPROC
 if [[ "$USAR_EPROC" =~ ^[sS] ]]; then
   read -r -p "Arraste o arquivo do certificado (.pfx ou .p12) para esta janela e tecle Enter: " PFX
-  PFX="${PFX%\"}"; PFX="${PFX#\"}"; PFX="${PFX%\'}"; PFX="${PFX#\'}"; PFX="${PFX%" "}"; PFX="${PFX//\\ / }"
+  PFX="$(printf '%s' "$PFX" | sed -e 's/[[:space:]]*$//' -e "s/^['\"]//" -e "s/['\"]\$//" -e 's/\\\(.\)/\1/g')"
   if [ ! -f "$PFX" ]; then echo "Arquivo não encontrado: $PFX"; exit 1; fi
   mkdir -p certificado && chmod 700 certificado
   cp "$PFX" certificado/certificado.pfx && chmod 600 certificado/certificado.pfx

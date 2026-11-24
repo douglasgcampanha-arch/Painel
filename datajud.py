@@ -78,9 +78,9 @@ def _buscar(alias: str, numero: str, chave: str, log) -> list[dict]:
         "User-Agent": "PainelDJEN/1.0 (uso pessoal)",
     })
     espera = 10
-    for tentativa in range(1, 5):
+    for tentativa in range(1, 3):
         try:
-            with urllib.request.urlopen(req, timeout=90) as r:
+            with urllib.request.urlopen(req, timeout=45) as r:
                 dados = json.loads(r.read().decode("utf-8"))
             return [h.get("_source", {}) for h in dados.get("hits", {}).get("hits", [])]
         except urllib.error.HTTPError as e:
@@ -89,14 +89,14 @@ def _buscar(alias: str, numero: str, chave: str, log) -> list[dict]:
                     "DataJud recusou a chave pública (HTTP %d). Confira a chave vigente em "
                     "datajud-wiki.cnj.jus.br/api-publica/acesso e atualize 'datajud_chave' no config.json." % e.code
                 ) from None
-            if e.code in (429, 500, 502, 503, 504) and tentativa < 4:
+            if e.code in (429, 500, 502, 503, 504) and tentativa < 2:
                 log(f"DataJud HTTP {e.code} ({mascara(numero)}); nova tentativa em {espera}s")
                 time.sleep(espera)
                 espera *= 2
                 continue
             raise RuntimeError(f"DataJud HTTP {e.code}") from None
         except (urllib.error.URLError, TimeoutError) as e:
-            if tentativa < 4:
+            if tentativa < 2:
                 time.sleep(espera)
                 espera *= 2
                 continue
@@ -121,7 +121,14 @@ def atualizar_carteira(carteira: dict, numeros_djen: dict, cfg: dict, log) -> di
     agora_iso = agora.isoformat(timespec="seconds")
     chave = cfg.get("datajud_chave") or CHAVE_PADRAO
     intervalo = timedelta(hours=float(cfg.get("datajud_intervalo_horas", 6)))
-    limite = int(cfg.get("datajud_max_por_execucao", 40))
+    limite = int(cfg.get("datajud_max_por_execucao", 15))
+    max_falhas_seguidas = int(cfg.get("datajud_max_falhas_seguidas", 3))
+    falhas_seguidas = 0
+
+    # 0) retira da carteira processos vindos do DJEN que saíram da janela de dias
+    manuais_set = {so_digitos(n) for n in cfg.get("processos", [])}
+    for n in [n for n, r in carteira.items() if r.get("origem") == "djen" and n not in numeros_djen and n not in manuais_set]:
+        del carteira[n]
 
     # 1) incorpora processos novos (DJEN + lista manual)
     manuais = {so_digitos(n): "manual" for n in cfg.get("processos", [])}
@@ -157,10 +164,16 @@ def atualizar_carteira(carteira: dict, numeros_djen: dict, cfg: dict, log) -> di
         except RuntimeError as e:
             reg["erro"] = str(e)
             resumo["erros"] += 1
+            falhas_seguidas += 1
             log(f"DataJud {reg['numero']}: {e}")
             if "chave" in str(e):
                 break  # chave inválida: não adianta continuar
+            if falhas_seguidas >= max_falhas_seguidas:
+                log(f"DataJud instável ({falhas_seguidas} falhas seguidas); retoma na próxima execução.")
+                resumo["interrompido"] = True
+                break
             continue
+        falhas_seguidas = 0
         reg["ultima_consulta"] = agora_iso
         reg["alias"] = alias
         resumo["consultados"] += 1
