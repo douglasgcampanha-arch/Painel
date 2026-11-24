@@ -110,6 +110,13 @@ mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
 .analise ul,.analise ol{margin:4px 0 0;padding-left:20px}
 .analise li{margin:2px 0}
 .analise .c,.cols .c{color:var(--muted);font-size:13px}
+dialog#astrea-dlg{border:1px solid var(--line);border-radius:12px;padding:0;max-width:640px;width:calc(100% - 32px);background:var(--surface);color:var(--text)}
+dialog#astrea-dlg::backdrop{background:rgba(0,0,0,.45)}
+#astrea-form{padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+#astrea-form h2{margin:0;font-size:18px}
+#astrea-form label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+#astrea-form textarea{width:100%;font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical}
+#astrea-form .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .errline{font-size:13px;color:var(--warn);margin-top:6px}
 @media (max-width:760px){
   .kpis{grid-template-columns:repeat(2,1fr)}
@@ -206,8 +213,28 @@ mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
   As movimentações vêm da API Pública do DataJud (CNJ), que reúne os dados enviados por todos os tribunais e sistemas (PJe, eproc, e-SAJ, Projudi e outros). Os tribunais enviam em lotes, então pode haver defasagem de horas a dias. Processos sigilosos não aparecem, e o teor das decisões não está disponível nessa fonte.</p>
 </div>
 
+<dialog id="astrea-dlg" aria-labelledby="astrea-tit">
+  <form method="dialog" id="astrea-form">
+    <h2 id="astrea-tit">Enviar ao Astrea</h2>
+    <div id="astrea-aviso"></div>
+    <label>Processo<input id="as-proc" readonly></label>
+    <div class="row2">
+      <label>Lançar como<select id="as-tipo"><option value="tarefa">Tarefa</option><option value="prazo">Prazo</option></select></label>
+      <label>Data<input id="as-data" type="date"></label>
+    </div>
+    <label>Título<input id="as-titulo" maxlength="200" required></label>
+    <label>Descrição<textarea id="as-desc" rows="10"></textarea></label>
+    <p class="c" id="as-nota">Confira os dados. A data sugerida é uma estimativa; ajuste se necessário.</p>
+    <div class="actions">
+      <button class="btn" value="cancel" formnovalidate>Cancelar</button>
+      <button class="btn primary" id="as-enviar" value="ok">Enviar</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 const DADOS = /*__DADOS__*/null;
+const TOKEN = /*__TOKEN__*/"";
 (function(){
   const $ = s => document.querySelector(s);
   const D = DADOS || {comunicacoes:[], oabs:[], titular:"", atualizado_em:"", erro:"Painel ainda não gerado pelo coletor."};
@@ -280,13 +307,13 @@ const DADOS = /*__DADOS__*/null;
       <dl class="cols">
         <dt>Para o cliente?</dt><dd><b>${esc({sim:"Sim", nao:"Não", incerto:"Incerto"}[A.dirigido_ao_cliente] || "")}</b>${A.cliente_identificado ? " - " + esc(A.cliente_identificado) : ""}<br><span class="c">${esc(A.justificativa_cliente)}</span></dd>
         <dt>Manifestação</dt><dd><b>${esc({sim:"Sim", nao:"Não", verificar:"Verificar"}[A.exige_manifestacao] || "")}</b>${A.providencia ? " - " + esc(A.providencia) : ""}</dd>
-        <dt>Prazo</dt><dd>${prazoTxt ? esc(prazoTxt) : "Não informado"}${A.base_do_prazo ? ` <span class="c">(${esc(A.base_do_prazo)})</span>` : ""}<br><span class="c">Início estimado: ${esc(fmt(c.inicio_prazo_estimado))}</span></dd>
+        <dt>Prazo</dt><dd>${prazoTxt ? esc(prazoTxt) : "Não informado"}${A.base_do_prazo ? ` <span class="c">(${esc(A.base_do_prazo)})</span>` : ""}<br><span class="c">Início estimado: ${esc(fmt(c.inicio_prazo_estimado))}${c.prazo_fatal_estimado ? " · prazo fatal estimado: " + esc(fmt(c.prazo_fatal_estimado)) : ""}</span></dd>
       </dl>
       <div class="an-s"><b>Orientação</b><p>${esc(A.orientacao)}</p></div>
       ${A.checklist.length ? `<div class="an-s"><b>Para deixar preparado</b>${lista(A.checklist)}</div>` : ""}
       ${A.estrutura_peca.length ? `<div class="an-s"><b>Estrutura da peça</b><ol>${A.estrutura_peca.map(x => `<li>${esc(x)}</li>`).join("")}</ol></div>` : ""}
       ${A.pontos_de_atencao.length ? `<div class="an-s"><b>Pontos de atenção</b>${lista(A.pontos_de_atencao)}</div>` : ""}
-      <div class="actions"><button class="btn" data-copy-an="${esc(c.id)}">Copiar análise</button>
+      <div class="actions">${D.astrea_ativo ? `<button class="btn primary" data-astrea="djen:${esc(c.id)}">Enviar ao Astrea</button>` : ""}<button class="btn" data-copy-an="${esc(c.id)}">Copiar análise</button>
         <span class="c">Gerada por IA (${esc(A._modelo || "")}) em ${esc(fmtDT(A._gerado_em))}. Conferir antes de agir.</span></div>
     </div>`;
   }
@@ -354,6 +381,8 @@ const DADOS = /*__DADOS__*/null;
         <div class="dates">
           <span>Publicação (est.): <b>${esc(fmt(c.publicacao_estimada))}</b></span>
           <span>Início do prazo (est.): <b>${esc(fmt(c.inicio_prazo_estimado))}</b></span>
+          ${c.prazo_fatal_estimado ? `<span>Prazo fatal (est.): <b>${esc(fmt(c.prazo_fatal_estimado))}</b></span>` : ""}
+          ${astreaTag("djen:" + c.id)}
         </div>
         <div class="actions">
           ${A ? `<button class="btn${anAberta ? "" : " ia"}" data-act="analise">${anAberta ? "Ocultar análise" : "Análise"}</button>`
@@ -544,6 +573,7 @@ const DADOS = /*__DADOS__*/null;
         <div class="proc">${esc(i.processo)} <button class="copy" data-copy="${esc(i.processo)}">copiar</button></div>
         <div class="orgao">${esc(i.categoria)}</div>
         <dl class="cols">${ordemCols(i.colunas).map(([k,v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+        ${D.astrea_ativo ? `<div class="actions"><button class="btn primary" data-astrea="${esc(refEproc(i))}">Enviar ao Astrea</button>${astreaTag(refEproc(i))}</div>` : ""}
         ${i.tipo === "aguardando_abertura" ? `<div class="errline">Intimação ainda não aberta no eproc. O painel não abre prazos: a abertura é feita por você no sistema. Sem abertura, considera-se feita após 10 dias corridos do envio (Lei 11.419/2006, art. 5º, § 3º).</div>` : ""}
       </article>`).join("")
       : `<div class="empty">${E.ultimo_sucesso ? "Nenhum processo com esses filtros." : "A primeira leitura do eproc ainda não foi concluída."}</div>`;
@@ -554,6 +584,73 @@ const DADOS = /*__DADOS__*/null;
   });
   let te; $("#e-q").addEventListener("input", () => { clearTimeout(te); te = setTimeout(eRender, 150); });
   ["#e-base","#e-cruz","#e-tipo"].forEach(s => $(s).addEventListener("change", eRender));
+
+  // ------------------------------------------------ Astrea
+  const SERVIDO = location.protocol.startsWith("http") && !!TOKEN;
+  let astreaEstado = {};
+  function refEproc(i){ return "eproc:" + i.base + "|" + i.processo + "|" + ((i.colunas||{})["Evento e Prazo"] || ""); }
+  function astreaTag(ref){
+    const s = astreaEstado[ref]; if (!s) return "";
+    if (s.status === "enviado") return `<span class="tag ok">No Astrea</span>`;
+    if (s.status === "erro") return `<span class="tag new" title="${esc(s.erro)}">Astrea: erro</span>`;
+    return `<span class="tag warnt">Astrea: na fila</span>`;
+  }
+  async function carregarAstrea(){
+    if (!SERVIDO || !D.astrea_ativo) return;
+    try {
+      const r = await fetch("/api/astrea", {headers: {"X-Painel-Token": TOKEN}});
+      const j = await r.json(); const novo = {};
+      (j.fila || []).forEach(it => { novo[it.ref] = it; });
+      const mudou = JSON.stringify(novo) !== JSON.stringify(astreaEstado);
+      astreaEstado = novo; if (mudou) { render(); eRender(); }
+    } catch (e) {}
+  }
+  const isoBR = iso => iso || "";
+  function preparoDjen(c){
+    const A = c.analise || {};
+    const pt = A.prazo_dias ? `${A.prazo_dias} dias ${A.prazo_tipo === "uteis" ? "úteis" : A.prazo_tipo === "corridos" ? "corridos" : ""}`.trim() : "";
+    return { origem: "djen", ref: "djen:" + c.id, processo: c.processo || "",
+      tipo: A.exige_manifestacao === "sim" && c.prazo_fatal_estimado ? "prazo" : "tarefa",
+      titulo: `${A.providencia || "Analisar publicação"} - ${c.processo || ""}`.slice(0, 200),
+      data: c.prazo_fatal_estimado || "",
+      descricao: (c.analise ? textoAnalise(c, A, pt) : "") + "\n\nTeor (DJEN):\n" + (c.texto || "").slice(0, 6000) };
+  }
+  function preparoEproc(i){
+    const col = i.colunas || {};
+    const desc = Object.entries(col).map(([k, v]) => `${k}: ${v}`).join("\n");
+    return { origem: "eproc", ref: refEproc(i), processo: i.processo,
+      tipo: i.tipo === "aguardando_abertura" ? "tarefa" : "prazo",
+      titulo: `${i.tipo === "aguardando_abertura" ? "Intimação a abrir (eproc)" : "Prazo eproc"} - ${(col["Evento e Prazo"] || i.categoria || "").slice(0, 80)} - ${i.processo}`.slice(0, 200),
+      data: i.prazo_final || "",
+      descricao: `eproc TJSP (${i.base}) - ${i.categoria}\n${desc}` };
+  }
+  let preparoAtual = null;
+  function abrirAstrea(prep){
+    preparoAtual = prep;
+    $("#as-proc").value = prep.processo; $("#as-tipo").value = prep.tipo; $("#as-data").value = isoBR(prep.data);
+    $("#as-titulo").value = prep.titulo; $("#as-desc").value = prep.descricao;
+    $("#astrea-aviso").innerHTML = SERVIDO ? "" : `<div class="banner warn">Para enviar, abra o painel pelo endereço <b>http://127.0.0.1:${location.port || 8765}</b> (atalho: atualizar_agora.command).</div>`;
+    $("#as-enviar").disabled = !SERVIDO;
+    $("#astrea-dlg").showModal();
+  }
+  $("#astrea-dlg").addEventListener("close", async () => {
+    if ($("#astrea-dlg").returnValue !== "ok" || !preparoAtual || !SERVIDO) return;
+    const corpo = {...preparoAtual, tipo: $("#as-tipo").value, data: $("#as-data").value,
+                   titulo: $("#as-titulo").value.trim(), descricao: $("#as-desc").value};
+    try {
+      const r = await fetch("/api/astrea/enviar", {method: "POST", headers: {"Content-Type": "application/json", "X-Painel-Token": TOKEN}, body: JSON.stringify(corpo)});
+      const j = await r.json();
+      if (!r.ok) alert("Não foi possível enviar: " + (j.erro || r.status));
+      astreaEstado[corpo.ref] = {status: "pendente"}; render(); eRender();
+    } catch (e) { alert("Servidor do painel indisponível."); }
+  });
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-astrea]"); if (!b) return;
+    const ref = b.dataset.astrea;
+    if (ref.startsWith("djen:")) { const c = C.find(x => "djen:" + x.id === ref); if (c) abrirAstrea(preparoDjen(c)); }
+    else { const i = EI.find(x => refEproc(x) === ref); if (i) abrirAstrea(preparoEproc(i)); }
+  });
+  carregarAstrea(); setInterval(carregarAstrea, 20000);
 
   // abas
   function aba(t){

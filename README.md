@@ -37,6 +37,18 @@ Arquivos de apoio: `atualizar_agora.command`, `eproc_primeiro_acesso.command` (r
 - Se a coleta falhar, o painel mostra o erro e mantém o histórico já salvo.
 - `dados/` e `painel.html` ficam fora do Git, porque contêm dados de processos e clientes.
 
+## Integração com o Astrea (Aurum)
+
+O Astrea não tem API pública. Por isso, um robô no navegador, logado com a sua conta, lança no Astrea as tarefas e prazos que você confirmar no painel.
+
+- **Botão "Enviar ao Astrea"** na análise de cada publicação do DJEN e em cada intimação do eproc. Ele abre uma janela já preenchida (tipo, data, título e descrição com a orientação), que você confere e edita antes de enviar.
+- A **data sugerida** é o prazo fatal estimado:
+  - DJEN: início estimado mais o prazo da análise, em dias úteis, pulando fins de semana, feriados nacionais e o recesso de 20/12 a 20/01 (CPC, art. 220);
+  - eproc: o Final Prazo do próprio sistema.
+- O painel passa a ser aberto em `http://127.0.0.1:8765`, um servidor local que só responde no próprio Mac e é protegido por um código secreto. Aberto como arquivo, o painel continua funcionando, mas não envia ao Astrea.
+- Configuração: `bash configurar_astrea.command` ativa o servidor, faz o login do robô no Astrea e grava o diagnóstico das telas (`dados/astrea_diagnostico/estrutura.json`, sem dados de processos) para calibrar o preenchimento.
+- Fila e histórico ficam em `dados/astrea_fila.json`, e o log em `dados/coletor.log`.
+
 ## Análise das publicações com IA
 
 Cada publicação do DJEN ganha o botão **Análise**, gerado pelo Claude (API da Anthropic). A análise indica:

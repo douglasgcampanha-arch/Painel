@@ -36,5 +36,11 @@
     "modelo": "claude-opus-5-5",
     "esforco": "medium",
     "fallback_recusa": true
+  },
+  "servidor_porta": 8765,
+  "astrea": {
+    "ativo": false,
+    "url": "https://astrea.net.br",
+    "tipo_padrao": "tarefa"
   }
 }

@@ -131,6 +131,32 @@ def dia_util(d: date) -> bool:
     return d.weekday() < 5 and d not in feriados(d.year)
 
 
+def _suspenso(d: date) -> bool:
+    """Recesso forense: prazos suspensos de 20/12 a 20/01 (CPC, art. 220; CLT, art. 775-A)."""
+    return (d.month == 12 and d.day >= 20) or (d.month == 1 and d.day <= 20)
+
+
+def prazo_fatal_estimado(inicio_iso: str, dias, tipo: str) -> str:
+    """Último dia do prazo contado a partir do início estimado (inclusive).
+    Dias úteis: pula fins de semana, feriados nacionais e o recesso de 20/12 a 20/01.
+    Corridos: pula o recesso e, se terminar em dia não útil, prorroga para o próximo útil.
+    Estimativa: não considera feriados locais, suspensões de expediente nem regras especiais."""
+    if not inicio_iso or not isinstance(dias, int) or dias <= 0:
+        return ""
+    d = date.fromisoformat(inicio_iso)
+    conta_dia = (lambda x: not _suspenso(x)) if tipo == "corridos" else (lambda x: dia_util(x) and not _suspenso(x))
+    while not conta_dia(d):
+        d += timedelta(days=1)
+    restantes = dias - 1
+    while restantes > 0:
+        d += timedelta(days=1)
+        if conta_dia(d):
+            restantes -= 1
+    while not dia_util(d):
+        d += timedelta(days=1)
+    return d.isoformat()
+
+
 def proximo_dia_util(d: date) -> date:
     d += timedelta(days=1)
     while not dia_util(d):
@@ -249,7 +275,12 @@ def normalizar(item: dict, oab_ref: str) -> dict:
 def gerar_painel(registros: dict, estado: dict, cfg: dict, carteira: dict | None = None,
                  eproc: dict | None = None) -> None:
     analises = ler_json(DADOS / "analises.json", {})
-    lista = sorted(({**r, "analise": analises.get(r["id"])} for r in registros.values()),
+    def _com_analise(r):
+        a = analises.get(r["id"])
+        fatal = prazo_fatal_estimado(r.get("inicio_prazo_estimado", ""), (a or {}).get("prazo_dias"),
+                                     (a or {}).get("prazo_tipo", "")) if a else ""
+        return {**r, "analise": a, "prazo_fatal_estimado": fatal}
+    lista = sorted((_com_analise(r) for r in registros.values()),
                    key=lambda r: (r["disponibilizacao"], r["id"]), reverse=True)
     processos = sorted((carteira or {}).values(),
                        key=lambda r: (r["movimentos"][0]["data"] if r.get("movimentos") else ""), reverse=True)
@@ -262,6 +293,7 @@ def gerar_painel(registros: dict, estado: dict, cfg: dict, carteira: dict | None
         "novas_ultima_coleta": estado.get("novas_ultima_coleta", 0),
         "comunicacoes": lista,
         "analise_ia_ativa": bool(cfg.get("analise_ia", {}).get("ativo")),
+        "astrea_ativo": bool(cfg.get("astrea", {}).get("ativo")),
         "datajud": {
             "ativo": bool(cfg.get("datajud_ativo", True)),
             "ultima_execucao": estado.get("datajud_ultima_execucao", ""),
