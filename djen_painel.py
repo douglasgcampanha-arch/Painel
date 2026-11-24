@@ -370,7 +370,14 @@ def main() -> int:
     gerar_painel(registros, estado, cfg, carteira, eproc)
 
     # ---- DataJud: movimentações da carteira (todos os sistemas: PJe, eproc, e-SAJ, Projudi...)
-    if cfg.get("datajud_ativo", True):
+    # se a última rodada foi interrompida por instabilidade do CNJ, espera algumas horas
+    pausa_dj = False
+    if estado.get("datajud_resumo", {}).get("interrompido") and estado.get("datajud_ultima_execucao"):
+        decorrido = datetime.now() - datetime.fromisoformat(estado["datajud_ultima_execucao"])
+        pausa_dj = decorrido < timedelta(hours=float(cfg.get("datajud_pausa_horas", 3)))
+        if pausa_dj:
+            log("DataJud em pausa após instabilidade; nova tentativa mais tarde.")
+    if cfg.get("datajud_ativo", True) and not pausa_dj:
         numeros = {}
         for r in registros.values():
             n = datajud.so_digitos(r.get("processo", ""))
