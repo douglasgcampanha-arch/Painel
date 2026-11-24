@@ -11,3 +11,6 @@ certificado/
 *.pem
 *.key
 .venv/
+
+# configuração local (criada a partir de config.exemplo.json)
+config.json

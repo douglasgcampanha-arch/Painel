@@ -17,6 +17,8 @@ Painel pessoal e privado, atualizado a cada hora, com duas abas:
    - abre o primeiro acesso ao eproc para validar o 2FA.
 4. Deixe o Mac sem repouso automático (Ajustes do Sistema > Bateria/Energia).
 
+Para baixar a versão mais recente do código: `bash atualizar_codigo.command` (requer `gh auth login` uma vez).
+
 Arquivos de apoio: `atualizar_agora.command`, `eproc_primeiro_acesso.command` (revalidar o 2FA), `eproc_diagnostico.command` (estrutura das telas para ajuste, sem dados de processos) e `desinstalar_mac.command`.
 
 ## eproc TJSP (certificado digital)
@@ -61,7 +63,7 @@ Linux/macOS: `crontab -e` e adicione `0 * * * * python3 /caminho/djen_painel.py`
 
 ## Configuração
 
-Em `config.json`, inclua outras OABs na lista `oabs` (por exemplo, colegas do escritório), processos avulsos em `processos`, e ajuste `janela_dias` e os parâmetros `datajud_*`. Para desligar o DataJud, use `"datajud_ativo": false`.
+O `config.json` é local (fica fora do Git e é criado a partir de `config.exemplo.json`; chaves novas entram sozinhas). Nele, inclua outras OABs na lista `oabs` (por exemplo, colegas do escritório), processos avulsos em `processos`, e ajuste `janela_dias` e os parâmetros `datajud_*`. Para desligar o DataJud, use `"datajud_ativo": false`.
 
 ## Observações
 

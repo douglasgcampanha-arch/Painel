@@ -389,8 +389,8 @@ def coletar(cfg: dict, log, interativo=False, diagnostico=False) -> dict:
 
 if __name__ == "__main__":
     sys.path.insert(0, str(BASE))
-    from djen_painel import CONFIG, ler_json, log as _log
-    cfg = ler_json(CONFIG, {})
+    from djen_painel import carregar_config, log as _log
+    cfg = carregar_config()
     res = coletar(cfg, _log, interativo="--interativo" in sys.argv, diagnostico="--diagnostico" in sys.argv)
     if "--diagnostico" in sys.argv:
         print(f"Estrutura salva em {DIR_DIAG / 'estrutura.json'} (sem números de processos ou nomes).")

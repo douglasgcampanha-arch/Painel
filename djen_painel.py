@@ -26,6 +26,7 @@ import datajud
 
 BASE = Path(__file__).resolve().parent
 CONFIG = BASE / "config.json"
+CONFIG_EXEMPLO = BASE / "config.exemplo.json"
 DADOS = BASE / "dados"
 ARQ_DADOS = DADOS / "comunicacoes.json"
 ARQ_ESTADO = DADOS / "estado.json"
@@ -275,8 +276,31 @@ def gerar_painel(registros: dict, estado: dict, cfg: dict, carteira: dict | None
 
 
 # -------------------------------------------------------------------- main
+def carregar_config() -> dict:
+    """Lê config.json (local, fora do Git). Se não existir, cria a partir do exemplo.
+    Chaves novas do exemplo são acrescentadas sem alterar o que você já configurou."""
+    exemplo = ler_json(CONFIG_EXEMPLO, {})
+    if not CONFIG.exists() and exemplo:
+        CONFIG.write_text(json.dumps(exemplo, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    cfg = ler_json(CONFIG, {})
+    alterou = False
+    for k, v in exemplo.items():
+        if k not in cfg:
+            cfg[k] = v
+            alterou = True
+        elif isinstance(v, dict) and isinstance(cfg[k], dict):
+            for k2, v2 in v.items():
+                if k2 not in cfg[k]:
+                    cfg[k][k2] = v2
+                    alterou = True
+    if alterou:
+        CONFIG.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return cfg
+
+
+
 def main() -> int:
-    cfg = ler_json(CONFIG, None)
+    cfg = carregar_config()
     if not cfg or not cfg.get("oabs"):
         print("config.json ausente ou sem OABs.", file=sys.stderr)
         return 2

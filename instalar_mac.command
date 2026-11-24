@@ -47,6 +47,7 @@ rm -rf .venv
 .venv/bin/pip install -q --only-binary=:all: "playwright==1.49.1"
 .venv/bin/python -m playwright install chromium
 
+[ -f config.json ] || cp config.exemplo.json config.json
 USAR_EPROC=n
 echo
 read -r -p "2/4 Configurar o eproc TJSP com o certificado digital A1 agora? (s/n) " USAR_EPROC
