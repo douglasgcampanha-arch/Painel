@@ -56,6 +56,19 @@ URL_PROIBIDA = re.compile(
 CNJ = re.compile(r"\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}")
 
 
+def tipo_categoria(rotulo: str) -> str:
+    r = rotulo.lower()
+    if "decurso" in r:
+        return "decurso"
+    if "pendente" in r:
+        return "aguardando_abertura"
+    if "vencendo hoje" in r:
+        return "vence_hoje"
+    if "prazo em aberto" in r:
+        return "prazo_aberto"
+    return "outro"
+
+
 class Precisa2FA(RuntimeError):
     pass
 
@@ -98,20 +111,18 @@ def _mascarar(txt: str) -> str:
 JS_TABELAS = r"""
 () => {
   const limpa = s => (s || '').replace(/\s+/g, ' ').trim();
-  return [...document.querySelectorAll('table')].map((t, i) => {
-    let heads = [...t.querySelectorAll('thead th')].map(th => limpa(th.innerText));
-    let rows = [...t.querySelectorAll('tbody tr')];
-    if (!heads.length && rows.length) {
-      const first = rows[0];
-      const ths = first.querySelectorAll('th');
-      if (ths.length) { heads = [...ths].map(th => limpa(th.innerText)); rows = rows.slice(1); }
-    }
-    return {
-      idx: i, id: t.id || '', classe: t.className || '', caption: limpa(t.caption && t.caption.innerText),
-      heads,
-      rows: rows.map(tr => [...tr.querySelectorAll('td')].map(td => limpa(td.innerText))).filter(r => r.length),
-    };
-  });
+  return [...document.querySelectorAll('table')]
+    .filter(t => !/infraTableOrdenacao/.test(t.className || ''))
+    .map((t, i) => {
+      // t.rows / tr.cells trazem só as linhas e células desta tabela (não as aninhadas)
+      const linhas = [...t.rows];
+      const cab = linhas.find(tr => [...tr.cells].some(c => c.tagName === 'TH'));
+      const heads = cab ? [...cab.cells].map(c => limpa(c.innerText).replace(/[^\p{L}\p{N}?)]+$/u, '')) : [];
+      const rows = linhas.filter(tr => tr !== cab && [...tr.cells].every(c => c.tagName === 'TD'))
+        .map(tr => [...tr.cells].map(td => limpa(td.innerText))).filter(r => r.some(Boolean));
+      return { idx: i, id: t.id || '', classe: t.className || '',
+               caption: limpa(t.caption && t.caption.innerText), heads, rows };
+    });
 }
 """
 
@@ -135,7 +146,8 @@ JS_SECAO_INTIMACOES = r"""
     if (!a.getClientRects().length || getComputedStyle(a).visibility === 'hidden') return; // ignora abas ocultas
     // rótulo = texto da linha/caixa onde está o número
     const linha = a.closest('tr, li, .card, .row, div') || a.parentElement;
-    const rotulo = limpa((linha.innerText || '').replace(t, ''));
+    const rotulo = limpa((linha.innerText || '').replace(t, ''))
+      .replace(/^(alarm|help_outline|warning|info)\s*/i, '').replace(/[:\s\d]+$/, '');
     a.setAttribute('data-painel-idx', String(i));
     itens.push({ idx: String(i), quantidade: parseInt(t, 10), categoria: rotulo.slice(0, 160),
                  href: a.getAttribute('href') || '', onclick: a.getAttribute('onclick') || '' });
@@ -301,7 +313,10 @@ class ColetorEproc:
                 if not proc:
                     continue
                 cols = {(heads[i] if i < len(heads) and heads[i] else f"col{i+1}"): v for i, v in enumerate(r) if v}
-                linhas.append({"processo": proc, "colunas": cols})
+                final = next((v for k, v in cols.items() if re.search(r"final", k, re.I)), "")
+                m = re.search(r"(\d{2})/(\d{2})/(\d{4})", final)
+                linhas.append({"processo": proc, "colunas": cols,
+                               "prazo_final": f"{m.group(3)}-{m.group(2)}-{m.group(1)}" if m else ""})
         pg.close()
         return linhas
 
@@ -336,21 +351,23 @@ class ColetorEproc:
                 self._registrar_diag(pagina, "painel_advogado")
                 categorias = self._ler_secao(pagina)
                 itens, vistos = [], set()
+                ignorar = [x.lower() for x in self.cfg.get("eproc_tjsp", {}).get("categorias_ignorar", ["decurso"])]
                 for c in categorias:
-                    if c["quantidade"] <= 0:
+                    c["tipo"] = tipo_categoria(c["categoria"])
+                    if c["quantidade"] <= 0 or any(x in c["categoria"].lower() for x in ignorar):
                         continue
                     for linha in self._ler_lista(ctx, pagina, c):
                         chave = (c["base"], c["categoria"], linha["processo"])
                         if chave not in vistos:
                             vistos.add(chave)
-                            itens.append({"base": c["base"], "categoria": c["categoria"], **linha})
+                            itens.append({"base": c["base"], "categoria": c["categoria"], "tipo": c["tipo"], **linha})
                     time.sleep(1.5)
             finally:
                 if self.diagnostico:
                     (DIR_DIAG / "estrutura.json").write_text(json.dumps(self.diag, ensure_ascii=False, indent=1),
                                                              encoding="utf-8")
                 ctx.close()
-        return {"categorias": [{k: c[k] for k in ("base", "categoria", "quantidade")} for c in categorias],
+        return {"categorias": [{k: c.get(k) for k in ("base", "categoria", "quantidade", "tipo")} for c in categorias],
                 "itens": itens}
 
 

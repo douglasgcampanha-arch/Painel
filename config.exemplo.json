@@ -19,7 +19,10 @@
     "horario_inicio": 7,
     "horario_fim": 21,
     "certificado_pem": "",
-    "chave_pem": ""
+    "chave_pem": "",
+    "categorias_ignorar": [
+      "decurso"
+    ]
   },
   "datajud_max_falhas_seguidas": 3
 }

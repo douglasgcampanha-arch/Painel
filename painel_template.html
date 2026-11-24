@@ -101,6 +101,7 @@ mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
 .cols{display:grid;grid-template-columns:max-content 1fr;gap:2px 12px;font-size:13px;margin-top:8px}
 .cols dt{color:var(--muted)}
 .cols dd{margin:0;overflow-wrap:anywhere}
+.tag.warnt{background:var(--warn-soft);color:var(--warn);font-weight:600}
 .errline{font-size:13px;color:var(--warn);margin-top:6px}
 @media (max-width:760px){
   .kpis{grid-template-columns:repeat(2,1fr)}
@@ -171,8 +172,14 @@ mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
   <div id="tab-eproc" hidden>
     <div id="e-banner"></div>
     <div class="cats" id="e-cats"></div>
-    <section class="filters f3" aria-label="Filtros eproc">
+    <section class="filters" aria-label="Filtros eproc">
       <input class="q" id="e-q" type="search" placeholder="Buscar processo, classe, evento…" autocomplete="off">
+      <select id="e-tipo">
+        <option value="">Todas as situações</option>
+        <option value="aguardando_abertura">Aguardando abertura</option>
+        <option value="prazo_aberto">Prazo correndo</option>
+        <option value="urgente">Vence em até 2 dias</option>
+      </select>
       <select id="e-base"><option value="">Todas as bases</option></select>
       <select id="e-cruz">
         <option value="">DJEN: todos</option>
@@ -431,6 +438,17 @@ const DADOS = /*__DADOS__*/null;
   const E = D.eproc || {ativo:false};
   const EI = E.itens || [];
   const djenNums = new Set(C.map(c => String(c.processo||"").replace(/\D/g,"")));
+  // "vencendo hoje" repete itens de "prazo em aberto": mantém um só e marca
+  const chaveE = i => i.base + "|" + i.processo + "|" + ((i.colunas||{})["Evento e Prazo"] || "");
+  const hoje_ = new Set(EI.filter(i => i.tipo === "vence_hoje").map(chaveE));
+  for (let k = EI.length - 1; k >= 0; k--) {
+    const i = EI[k];
+    if (i.tipo === "vence_hoje" && EI.some(j => j !== i && j.tipo !== "vence_hoje" && chaveE(j) === chaveE(i))) EI.splice(k, 1);
+  }
+  const diasAte = iso => { if (!iso) return null; return Math.round((new Date(iso+"T12:00:00") - new Date(hojeISO+"T12:00:00")) / 864e5); };
+  EI.forEach(i => { i._dias = diasAte(i.prazo_final); i._vhoje = hoje_.has(chaveE(i)) || i._dias === 0; });
+  EI.sort((a, b) => (a.tipo === "aguardando_abertura" ? -1 : 0) - (b.tipo === "aguardando_abertura" ? -1 : 0)
+                    || (a.prazo_final || "9999") .localeCompare(b.prazo_final || "9999"));
   EI.forEach(i => { i._num = String(i.processo).replace(/\D/g,""); i._djen = djenNums.has(i._num);
     i._busca = norm([i.processo, i._num, i.base, i.categoria, Object.values(i.colunas||{}).join(" ")].join(" ")); });
   if (!E.ativo) $("#tab-btn-eproc").hidden = true;
@@ -438,13 +456,17 @@ const DADOS = /*__DADOS__*/null;
   $("#e-base").insertAdjacentHTML("beforeend", eb.map(b => `<option>${esc(b)}</option>`).join(""));
   if (E.precisa_2fa) $("#e-banner").innerHTML = `<div class="banner warn"><b>O eproc pediu o código 2FA.</b> Abra o arquivo <code>eproc_primeiro_acesso.command</code> no Mac para liberar o dispositivo de novo. Até lá a coleta do eproc fica pausada.</div>`;
   else if (E.erro) $("#e-banner").innerHTML = `<div class="banner err"><b>Falha na leitura do eproc:</b> ${esc(E.erro)}</div>`;
-  $("#e-cats").innerHTML = (E.categorias||[]).filter(c => c.quantidade > 0)
+  $("#e-cats").innerHTML = (E.categorias||[]).filter(c => c.quantidade > 0 && c.tipo !== "decurso")
     .map(c => `<div class="cat"><b>${c.quantidade}</b>${esc(c.base)} · ${esc(c.categoria)}</div>`).join("")
     || (E.ultimo_sucesso ? `<div class="cat">Nenhuma citação/intimação em aberto no Painel do Advogado.</div>` : "");
+  const ORDEM = ["Evento e Prazo", "Final Prazo", "Início Prazo", "Data envio requisição", "Classe", "Assunto"];
+  const ordemCols = c => Object.entries(c||{}).filter(([k]) => !/^processo|^col\d/i.test(k))
+    .sort((a, b) => (ORDEM.indexOf(a[0]) + 99) % 99 - (ORDEM.indexOf(b[0]) + 99) % 99);
   function eRender(){
     const termos = norm($("#e-q").value.trim()).split(/\s+/).filter(Boolean);
-    const base = $("#e-base").value, cr = $("#e-cruz").value;
-    const L = EI.filter(i => (!base || i.base === base) && (!cr || (cr === "so") !== i._djen) && termos.every(t => i._busca.includes(t)));
+    const base = $("#e-base").value, cr = $("#e-cruz").value, tp = $("#e-tipo").value;
+    const okTipo = i => !tp || (tp === "urgente" ? (i._dias !== null && i._dias <= 2) : tp === "prazo_aberto" ? i.tipo !== "aguardando_abertura" : i.tipo === tp);
+    const L = EI.filter(i => (!base || i.base === base) && okTipo(i) && (!cr || (cr === "so") !== i._djen) && termos.every(t => i._busca.includes(t)));
     const recente = Date.now() - 24*3600e3;
     const novos = EI.filter(i => i.visto_em && new Date(i.visto_em).getTime() > recente).length;
     $("#tc-eproc").textContent = novos || "";
@@ -452,12 +474,16 @@ const DADOS = /*__DADOS__*/null;
     $("#e-list").innerHTML = L.length ? L.map(i => `<article class="card">
         <div class="top"><div class="meta">
           <span class="tag trib">eproc ${esc(i.base)}</span>
-          <span class="tag">${esc(i.categoria)}</span>
+          ${i.tipo === "aguardando_abertura" ? `<span class="tag warnt">Aguardando abertura</span>` : `<span class="tag">Prazo correndo</span>`}
+          ${i._vhoje ? `<span class="tag new">Vence hoje</span>` : (i._dias !== null && i._dias >= 0 && i._dias <= 2 ? `<span class="tag new">Vence em ${i._dias} dia(s)</span>` : "")}
+          ${i._dias !== null && i._dias < 0 ? `<span class="tag">Prazo final passado</span>` : ""}
           ${i.visto_em && new Date(i.visto_em).getTime() > recente ? `<span class="tag new">Novo</span>` : ""}
           <span class="tag ${i._djen ? "ok" : "new"}">${i._djen ? "Também no DJEN" : "Só no eproc"}</span>
         </div><span class="tag">Desde ${esc(fmtDT(i.visto_em))}</span></div>
         <div class="proc">${esc(i.processo)} <button class="copy" data-copy="${esc(i.processo)}">copiar</button></div>
-        <dl class="cols">${Object.entries(i.colunas||{}).filter(([k]) => !/^processo/i.test(k)).map(([k,v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+        <div class="orgao">${esc(i.categoria)}</div>
+        <dl class="cols">${ordemCols(i.colunas).map(([k,v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+        ${i.tipo === "aguardando_abertura" ? `<div class="errline">Intimação ainda não aberta no eproc. O painel não abre prazos: a abertura é feita por você no sistema. Sem abertura, considera-se feita após 10 dias corridos do envio (Lei 11.419/2006, art. 5º, § 3º).</div>` : ""}
       </article>`).join("")
       : `<div class="empty">${E.ultimo_sucesso ? "Nenhum processo com esses filtros." : "A primeira leitura do eproc ainda não foi concluída."}</div>`;
   }
@@ -466,7 +492,7 @@ const DADOS = /*__DADOS__*/null;
     if (cp && navigator.clipboard) navigator.clipboard.writeText(cp.dataset.copy).then(() => { cp.textContent = "copiado"; setTimeout(() => cp.textContent = "copiar", 1200); }).catch(()=>{});
   });
   let te; $("#e-q").addEventListener("input", () => { clearTimeout(te); te = setTimeout(eRender, 150); });
-  ["#e-base","#e-cruz"].forEach(s => $(s).addEventListener("change", eRender));
+  ["#e-base","#e-cruz","#e-tipo"].forEach(s => $(s).addEventListener("change", eRender));
 
   // abas
   function aba(t){
