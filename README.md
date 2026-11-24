@@ -48,6 +48,13 @@ O Astrea não tem API pública. Por isso, um robô no navegador, logado com a su
 - O painel passa a ser aberto em `http://127.0.0.1:8765`, um servidor local que só responde no próprio Mac e é protegido por um código secreto. Aberto como arquivo, o painel continua funcionando, mas não envia ao Astrea.
 - Configuração: `bash configurar_astrea.command` ativa o servidor, faz o login do robô no Astrea e grava o diagnóstico das telas (`dados/astrea_diagnostico/estrutura.json`, sem dados de processos) para calibrar o preenchimento.
 - Fila e histórico ficam em `dados/astrea_fila.json`, e o log em `dados/coletor.log`.
+- **Como o robô lança:**
+  1. busca o processo pelo número (com e sem máscara);
+  2. abre "Adicionar prazo" no processo;
+  3. preenche título, data limite, lembrete de 2 dias e as observações (a orientação);
+  4. confere se o prazo apareceu no processo.
+- Com `"salvar_automatico": false` (padrão), a janela do robô fica aberta para você conferir e clicar em **Salvar** no Astrea. Depois de alguns envios corretos, pode mudar para `true`.
+- Se algo falhar, o cartão mostra "Astrea: erro" e uma captura da tela vai para `dados/astrea_erros/`. Para recalibrar, use `.venv/bin/python astrea.py --gravar`: crie um prazo de teste e apague-o depois.
 
 ## Análise das publicações com IA
 

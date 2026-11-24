@@ -43,6 +43,7 @@
     "url": "https://astrea.net.br",
     "tipo_padrao": "prazo",
     "responsavel": "",
-    "lembrete_dias_antes": 2
+    "lembrete_dias_antes": 2,
+    "salvar_automatico": false
   }
 }
