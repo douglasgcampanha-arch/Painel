@@ -610,7 +610,7 @@ const TOKEN = /*__TOKEN__*/"";
     const A = c.analise || {};
     const pt = A.prazo_dias ? `${A.prazo_dias} dias ${A.prazo_tipo === "uteis" ? "úteis" : A.prazo_tipo === "corridos" ? "corridos" : ""}`.trim() : "";
     return { origem: "djen", ref: "djen:" + c.id, processo: c.processo || "",
-      tipo: A.exige_manifestacao === "sim" && c.prazo_fatal_estimado ? "prazo" : "tarefa",
+      tipo: D.astrea_tipo_padrao || "prazo",
       titulo: `${A.providencia || "Analisar publicação"} - ${c.processo || ""}`.slice(0, 200),
       data: c.prazo_fatal_estimado || "",
       descricao: (c.analise ? textoAnalise(c, A, pt) : "") + "\n\nTeor (DJEN):\n" + (c.texto || "").slice(0, 6000) };
@@ -619,7 +619,7 @@ const TOKEN = /*__TOKEN__*/"";
     const col = i.colunas || {};
     const desc = Object.entries(col).map(([k, v]) => `${k}: ${v}`).join("\n");
     return { origem: "eproc", ref: refEproc(i), processo: i.processo,
-      tipo: i.tipo === "aguardando_abertura" ? "tarefa" : "prazo",
+      tipo: D.astrea_tipo_padrao || "prazo",
       titulo: `${i.tipo === "aguardando_abertura" ? "Intimação a abrir (eproc)" : "Prazo eproc"} - ${(col["Evento e Prazo"] || i.categoria || "").slice(0, 80)} - ${i.processo}`.slice(0, 200),
       data: i.prazo_final || "",
       descricao: `eproc TJSP (${i.base}) - ${i.categoria}\n${desc}` };

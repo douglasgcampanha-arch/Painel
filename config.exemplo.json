@@ -41,6 +41,6 @@
   "astrea": {
     "ativo": false,
     "url": "https://astrea.net.br",
-    "tipo_padrao": "tarefa"
+    "tipo_padrao": "prazo"
   }
 }
