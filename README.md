@@ -47,10 +47,14 @@ Cada publicação do DJEN ganha o botão **Análise**, gerado pelo Claude (API d
 
 Há também os filtros "Exigem manifestação" e "Dirigidas ao meu cliente", e o botão "Copiar análise".
 
-- Para ativar, rode `bash configurar_analise_ia.command`: ele pede a chave da API (console.anthropic.com), guarda nas Chaves do macOS e pergunta os nomes dos clientes.
-- A análise é feita pelo coletor, só para publicações novas (até `max_por_execucao` por execução), e fica em `dados/analises.json`.
-- O uso da API é cobrado à parte. Modelo e esforço ficam em `analise_ia` no `config.json`.
-- O teor das publicações é enviado à API da Anthropic para análise.
+- Para ativar, rode `bash configurar_analise_ia.command`. Ele usa o **Claude Code com a sua assinatura do Claude, sem chave de API**:
+  - instala o Claude Code se faltar;
+  - faz o login, testa e pergunta os nomes dos clientes.
+- A análise é feita pelo coletor, até 10 publicações novas por execução, sem ferramentas e numa pasta isolada. O resultado fica em `dados/analises.json`.
+- Consome o limite de uso da assinatura. Quando o limite acaba, a análise para e continua na próxima hora.
+- Se o agendamento não conseguir usar o login, gere um token com `claude setup-token` e guarde nas Chaves do macOS com o serviço `painel-claude-oauth`.
+- Opcional: `"motor": "api"` usa a API da Anthropic com chave (serviço `painel-anthropic-api`), cobrada à parte.
+- O teor das publicações é enviado ao Claude para análise.
 - A análise é um apoio: conferir sempre o teor e os autos antes de agir.
 
 ## DataJud (movimentações em todos os sistemas)

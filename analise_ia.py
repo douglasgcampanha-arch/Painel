@@ -9,12 +9,16 @@ Para cada comunicação nova da janela de dias, gera uma análise estruturada:
 A análise é gerada pelo coletor (não pelo navegador) e gravada em dados/analises.json;
 o botão "Análise" do painel apenas exibe o resultado.
 
-Chave da API: Chaves do macOS (serviço "painel-anthropic-api") ou variável
-ANTHROPIC_API_KEY. Custo por análise: centavos de dólar (modelo e esforço no config.json).
+Motores (config.json > analise_ia > motor):
+- "claude_cli" (padrão): usa o Claude Code instalado no Mac, logado com a assinatura do
+  Claude. Sem chave de API e sem cobrança extra; consome o limite de uso da assinatura.
+- "api": usa a API da Anthropic com chave (Chaves do macOS "painel-anthropic-api").
 """
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -23,6 +27,8 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent
 ARQ_ANALISES = BASE / "dados" / "analises.json"
 KC_SERVICO_API = "painel-anthropic-api"
+KC_SERVICO_OAUTH = "painel-claude-oauth"   # opcional: token de `claude setup-token`
+DIR_TRABALHO = BASE / "dados" / "ia_tmp"   # pasta vazia: o Claude Code não lê arquivos do projeto
 VERSAO_PROMPT = 1
 
 SISTEMA = """Você é um advogado sênior brasileiro que faz a triagem diária das publicações do \
@@ -84,16 +90,49 @@ ESQUEMA = {
 }
 
 
+def _keychain(servico: str) -> str | None:
+    if sys.platform != "darwin":
+        return None
+    r = subprocess.run(["security", "find-generic-password", "-s", servico, "-w"],
+                       capture_output=True, text=True, timeout=20)
+    return r.stdout.strip() or None if r.returncode == 0 else None
+
+
 def _chave_api() -> str | None:
-    import os
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return os.environ["ANTHROPIC_API_KEY"]
-    if sys.platform == "darwin":
-        r = subprocess.run(["security", "find-generic-password", "-s", KC_SERVICO_API, "-w"],
-                           capture_output=True, text=True, timeout=20)
-        if r.returncode == 0 and r.stdout.strip():
-            return r.stdout.strip()
-    return None
+    return os.environ.get("ANTHROPIC_API_KEY") or _keychain(KC_SERVICO_API)
+
+
+def localizar_claude(acfg: dict) -> str | None:
+    """Caminho absoluto do Claude Code (o launchd não tem o PATH do Terminal)."""
+    cands = [acfg.get("claude_cli") or "", shutil.which("claude") or "",
+             str(Path.home() / ".local/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]
+    return next((c for c in cands if c and Path(c).exists()), None)
+
+
+VALORES = {
+    "dirigido_ao_cliente": ("sim", "nao", "incerto"), "exige_manifestacao": ("sim", "nao", "verificar"),
+    "prazo_tipo": ("uteis", "corridos", "nao_informado"), "urgencia": ("alta", "media", "baixa"),
+    "confianca": ("alta", "media", "baixa"),
+}
+
+
+def _normalizar(d: dict) -> dict:
+    """Garante todos os campos do esquema (a saída do Claude Code é validada, mas por segurança)."""
+    out = {}
+    for k, spec in ESQUEMA["properties"].items():
+        v = d.get(k)
+        if spec.get("type") == "array":
+            v = [str(x) for x in v] if isinstance(v, list) else []
+        elif k == "prazo_dias":
+            v = v if isinstance(v, int) and v > 0 else None
+        else:
+            v = "" if v is None else str(v)
+            if k in VALORES and v not in VALORES[k]:
+                v = VALORES[k][-1] if k != "prazo_tipo" else "nao_informado"
+            if k == "tipo_ato" and v not in spec["enum"]:
+                v = "outro"
+        out[k] = v
+    return out
 
 
 def _entrada(reg: dict, cfg: dict) -> str:
@@ -115,6 +154,41 @@ def _entrada(reg: dict, cfg: dict) -> str:
     }
     return ("Dados da publicação:\n" + json.dumps(dados, ensure_ascii=False, indent=1) +
             "\n\nTeor da publicação:\n<<<\n" + (reg.get("texto") or "(sem teor)") + "\n>>>")
+
+
+def analisar_claude_cli(reg: dict, cfg: dict, binario: str) -> dict:
+    """Análise pelo Claude Code (assinatura), em modo não interativo e sem ferramentas."""
+    acfg = cfg.get("analise_ia", {})
+    DIR_TRABALHO.mkdir(parents=True, exist_ok=True)
+    env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}  # força a assinatura
+    token = _keychain(KC_SERVICO_OAUTH)
+    if token:
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = token
+    entrada = (SISTEMA + "\n\nAnalise a publicação abaixo e responda somente no formato estruturado "
+               "solicitado.\n\n" + _entrada(reg, cfg))
+    cmd = [binario, "-p", "Siga as instruções e analise a publicação recebida pela entrada padrão.",
+           "--output-format", "json", "--json-schema", json.dumps(ESQUEMA, ensure_ascii=False),
+           "--tools", "", "--disallowedTools", "mcp__*", "--max-turns", "3",
+           "--model", acfg.get("modelo_cli", "opus")]
+    r = subprocess.run(cmd, input=entrada, capture_output=True, text=True, timeout=int(acfg.get("timeout_s", 300)),
+                       cwd=DIR_TRABALHO, env=env)
+    try:
+        resp = json.loads(r.stdout)
+    except json.JSONDecodeError:
+        raise RuntimeError(f"Claude Code não respondeu em JSON (código {r.returncode}): "
+                           f"{(r.stderr or r.stdout).strip()[:200]}") from None
+    dados = resp.get("structured_output")
+    if not isinstance(dados, dict):
+        texto = str(resp.get("result") or "")
+        ini, fim = texto.find("{"), texto.rfind("}")
+        if ini < 0 or fim <= ini:
+            raise RuntimeError(f"sem análise estruturada: {texto.strip()[:200] or (r.stderr or '').strip()[:200]}")
+        dados = json.loads(texto[ini:fim + 1])
+    out = _normalizar(dados)
+    out["_modelo"] = f"Claude Code ({acfg.get('modelo_cli', 'opus')}, assinatura)"
+    out["_gerado_em"] = datetime.now().isoformat(timespec="seconds")
+    out["_versao"] = VERSAO_PROMPT
+    return out
 
 
 def analisar(reg: dict, cfg: dict, cliente) -> dict:
@@ -161,6 +235,34 @@ def analisar_pendentes(registros: dict, cfg: dict, log) -> dict:
     acfg = cfg.get("analise_ia", {})
     if not acfg.get("ativo"):
         return analises
+    pendentes = [r for r in sorted(registros.values(), key=lambda r: r["disponibilizacao"], reverse=True)
+                 if r["id"] not in analises or analises[r["id"]].get("_versao") != VERSAO_PROMPT]
+    if not pendentes:
+        return analises
+
+    if acfg.get("motor", "claude_cli") == "claude_cli":
+        binario = localizar_claude(acfg)
+        if not binario:
+            log("Análise IA: Claude Code não encontrado. Rode configurar_analise_ia.command.")
+            return analises
+        limite = int(acfg.get("max_por_execucao", 10))
+        feitas = erros = 0
+        for reg in pendentes[:limite]:
+            try:
+                analises[reg["id"]] = analisar_claude_cli(reg, cfg, binario)
+                feitas += 1
+            except (RuntimeError, ValueError, subprocess.TimeoutExpired) as e:
+                erros += 1
+                msg = str(e)
+                log(f"Análise IA {reg.get('processo')}: {msg[:200]}")
+                if erros >= 2 or any(x in msg.lower() for x in ("login", "auth", "limit", "usage")):
+                    break  # sem login, limite da assinatura ou instabilidade: tenta na próxima execução
+            ARQ_ANALISES.parent.mkdir(exist_ok=True)
+            ARQ_ANALISES.write_text(json.dumps(analises, ensure_ascii=False, indent=1), encoding="utf-8")
+        log(f"Análise IA (Claude Code): {feitas} analisada(s), {erros} erro(s), "
+            f"{max(0, len(pendentes) - feitas)} pendente(s).")
+        return analises
+
     chave = _chave_api()
     if not chave:
         log("Análise IA: chave da API não encontrada (Chaves do macOS: painel-anthropic-api).")
@@ -172,8 +274,6 @@ def analisar_pendentes(registros: dict, cfg: dict, log) -> dict:
         return analises
 
     cliente = anthropic.Anthropic(api_key=chave, max_retries=3, timeout=180)
-    pendentes = [r for r in sorted(registros.values(), key=lambda r: r["disponibilizacao"], reverse=True)
-                 if r["id"] not in analises or analises[r["id"]].get("_versao") != VERSAO_PROMPT]
     limite = int(acfg.get("max_por_execucao", 30))
     feitas = erros = 0
     for reg in pendentes[:limite]:
