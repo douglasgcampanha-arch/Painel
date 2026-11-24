@@ -95,6 +95,12 @@ mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
 .tl li.nv::before{background:var(--new)}
 .tl .d{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;margin-right:6px}
 .tl .c{color:var(--muted);font-size:13px}
+.cats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.cat{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px}
+.cat b{font-size:18px;font-variant-numeric:tabular-nums;margin-right:6px}
+.cols{display:grid;grid-template-columns:max-content 1fr;gap:2px 12px;font-size:13px;margin-top:8px}
+.cols dt{color:var(--muted)}
+.cols dd{margin:0;overflow-wrap:anywhere}
 .errline{font-size:13px;color:var(--warn);margin-top:6px}
 @media (max-width:760px){
   .kpis{grid-template-columns:repeat(2,1fr)}
@@ -119,6 +125,7 @@ mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="djen" aria-selected="true">Intimações <span class="tc" id="tc-djen"></span></button>
     <button role="tab" data-tab="proc" aria-selected="false">Movimentações <span class="tc" id="tc-proc"></span></button>
+    <button role="tab" data-tab="eproc" aria-selected="false" id="tab-btn-eproc">eproc TJSP <span class="tc" id="tc-eproc"></span></button>
   </nav>
 
   <div id="tab-djen">
@@ -164,7 +171,24 @@ mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
     <div class="list" id="p-list"></div>
   </div>
 
+  <div id="tab-eproc" hidden>
+    <div id="e-banner"></div>
+    <div class="cats" id="e-cats"></div>
+    <section class="filters f3" aria-label="Filtros eproc">
+      <input class="q" id="e-q" type="search" placeholder="Buscar processo, classe, evento…" autocomplete="off">
+      <select id="e-base"><option value="">Todas as bases</option></select>
+      <select id="e-cruz">
+        <option value="">DJEN: todos</option>
+        <option value="so">Só no eproc (sem intimação no DJEN)</option>
+        <option value="ambos">Também no DJEN</option>
+      </select>
+    </section>
+    <div class="count"><span id="e-count"></span></div>
+    <div class="list" id="e-list"></div>
+  </div>
+
   <p class="foot">Publicação e início de prazo são <b>estimativas</b>: publicação no 1º dia útil seguinte à disponibilização e contagem a partir do dia útil seguinte (Lei 11.419/2006, art. 4º, §§ 3º e 4º; CPC, art. 224). O cálculo considera apenas feriados nacionais, Carnaval, Sexta-feira Santa e Corpus Christi. Não considera feriados locais, suspensões de expediente nem o recesso forense, e não substitui a conferência no sistema do tribunal. A marcação "tratada" fica salva apenas neste navegador.<br>
+  A aba eproc TJSP é lida do Painel do Advogado com seu certificado, só para leitura: o robô nunca aciona "Abrir Prazo" nem abre atos.<br>
   As movimentações vêm da API Pública do DataJud (CNJ), que reúne os dados enviados por todos os tribunais e sistemas (PJe, eproc, e-SAJ, Projudi e outros). Os tribunais enviam em lotes, então pode haver defasagem de horas a dias. Processos sigilosos não aparecem, e o teor das decisões não está disponível nessa fonte.</p>
 </div>
 
@@ -406,20 +430,63 @@ const DADOS = /*__DADOS__*/null;
   let tp; $("#p-q").addEventListener("input", () => { clearTimeout(tp); tp = setTimeout(pRender, 150); });
   ["#p-trib","#p-show"].forEach(s => $(s).addEventListener("change", pRender));
 
+  // ------------------------------------------------ eproc TJSP
+  const E = D.eproc || {ativo:false};
+  const EI = E.itens || [];
+  const djenNums = new Set(C.map(c => String(c.processo||"").replace(/\D/g,"")));
+  EI.forEach(i => { i._num = String(i.processo).replace(/\D/g,""); i._djen = djenNums.has(i._num);
+    i._busca = norm([i.processo, i._num, i.base, i.categoria, Object.values(i.colunas||{}).join(" ")].join(" ")); });
+  if (!E.ativo) $("#tab-btn-eproc").hidden = true;
+  const eb = [...new Set(EI.map(i => i.base))].sort();
+  $("#e-base").insertAdjacentHTML("beforeend", eb.map(b => `<option>${esc(b)}</option>`).join(""));
+  if (E.precisa_2fa) $("#e-banner").innerHTML = `<div class="banner warn"><b>O eproc pediu o código 2FA.</b> Abra o arquivo <code>eproc_primeiro_acesso.command</code> no Mac para liberar o dispositivo de novo. Até lá a coleta do eproc fica pausada.</div>`;
+  else if (E.erro) $("#e-banner").innerHTML = `<div class="banner err"><b>Falha na leitura do eproc:</b> ${esc(E.erro)}</div>`;
+  $("#e-cats").innerHTML = (E.categorias||[]).filter(c => c.quantidade > 0)
+    .map(c => `<div class="cat"><b>${c.quantidade}</b>${esc(c.base)} · ${esc(c.categoria)}</div>`).join("")
+    || (E.ultimo_sucesso ? `<div class="cat">Nenhuma citação/intimação em aberto no Painel do Advogado.</div>` : "");
+  function eRender(){
+    const termos = norm($("#e-q").value.trim()).split(/\s+/).filter(Boolean);
+    const base = $("#e-base").value, cr = $("#e-cruz").value;
+    const L = EI.filter(i => (!base || i.base === base) && (!cr || (cr === "so") !== i._djen) && termos.every(t => i._busca.includes(t)));
+    const recente = Date.now() - 24*3600e3;
+    const novos = EI.filter(i => i.visto_em && new Date(i.visto_em).getTime() > recente).length;
+    $("#tc-eproc").textContent = novos || "";
+    $("#e-count").textContent = `${L.length} processo(s) · última leitura: ${fmtDT(E.ultima_execucao)}${E.ultimo_sucesso && E.ultimo_sucesso !== E.ultima_execucao ? " · último sucesso: " + fmtDT(E.ultimo_sucesso) : ""}`;
+    $("#e-list").innerHTML = L.length ? L.map(i => `<article class="card">
+        <div class="top"><div class="meta">
+          <span class="tag trib">eproc ${esc(i.base)}</span>
+          <span class="tag">${esc(i.categoria)}</span>
+          ${i.visto_em && new Date(i.visto_em).getTime() > recente ? `<span class="tag new">Novo</span>` : ""}
+          <span class="tag ${i._djen ? "ok" : "new"}">${i._djen ? "Também no DJEN" : "Só no eproc"}</span>
+        </div><span class="tag">Desde ${esc(fmtDT(i.visto_em))}</span></div>
+        <div class="proc">${esc(i.processo)} <button class="copy" data-copy="${esc(i.processo)}">copiar</button></div>
+        <dl class="cols">${Object.entries(i.colunas||{}).filter(([k]) => !/^processo/i.test(k)).map(([k,v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+      </article>`).join("")
+      : `<div class="empty">${E.ultimo_sucesso ? "Nenhum processo com esses filtros." : "A primeira leitura do eproc ainda não foi concluída."}</div>`;
+  }
+  $("#e-list").addEventListener("click", e => {
+    const cp = e.target.closest("[data-copy]");
+    if (cp && navigator.clipboard) navigator.clipboard.writeText(cp.dataset.copy).then(() => { cp.textContent = "copiado"; setTimeout(() => cp.textContent = "copiar", 1200); }).catch(()=>{});
+  });
+  let te; $("#e-q").addEventListener("input", () => { clearTimeout(te); te = setTimeout(eRender, 150); });
+  ["#e-base","#e-cruz"].forEach(s => $(s).addEventListener("change", eRender));
+
   // abas
   function aba(t){
     document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
-    $("#tab-djen").hidden = t !== "djen"; $("#tab-proc").hidden = t !== "proc";
+    $("#tab-djen").hidden = t !== "djen"; $("#tab-proc").hidden = t !== "proc"; $("#tab-eproc").hidden = t !== "eproc";
     store.set("painel-djen-aba", t);
   }
   document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => aba(b.dataset.tab)));
-  aba(store.get("painel-djen-aba", "djen"));
+  const abaSalva = store.get("painel-djen-aba", "djen");
+  aba(abaSalva === "eproc" && !E.ativo ? "djen" : abaSalva);
 
   // recarrega a cada 10 min para pegar a coleta horária (não recarrega com conteúdo aberto ou busca ativa)
   setInterval(() => { if (!abertos.size && !pAbertos.size && !$("#f-q").value && !$("#p-q").value) location.reload(); }, 10*60*1000);
 
   render();
   pRender();
+  eRender();
 })();
 </script>
 </body>

@@ -4,6 +4,29 @@ Painel pessoal e privado, atualizado a cada hora, com duas abas:
 
 - **Intimações**: comunicações do Diário de Justiça Eletrônico Nacional (DJEN/CNJ) da OAB 350073/SP.
 - **Movimentações**: andamentos dos processos da carteira pela API Pública do DataJud (CNJ), que reúne os dados de todos os tribunais e sistemas (PJe, eproc, e-SAJ, Projudi etc.).
+- **eproc TJSP**: citações e intimações em aberto no Painel do Advogado do eproc TJSP, lidas com o certificado digital A1, somente para leitura.
+
+## Instalação no Mac (recomendada)
+
+1. Instale o Python 3 (python.org).
+2. Coloque esta pasta em `~/PainelDJEN`. Não use Documentos, Mesa, Downloads nem iCloud, porque o macOS bloqueia tarefas automáticas nessas pastas.
+3. No Terminal: `cd ~/PainelDJEN && bash instalar_mac.command`. O instalador:
+   - cria o ambiente Python e instala o navegador do robô;
+   - copia o certificado .pfx para `certificado/` (fora do Git) e guarda a senha nas Chaves do macOS;
+   - agenda a coleta a cada 1 hora (launchd `br.painel-djen.coletor`);
+   - abre o primeiro acesso ao eproc para validar o 2FA.
+4. Deixe o Mac sem repouso automático (Ajustes do Sistema > Bateria/Energia).
+
+Arquivos de apoio: `atualizar_agora.command`, `eproc_primeiro_acesso.command` (revalidar o 2FA), `eproc_diagnostico.command` (estrutura das telas para ajuste, sem dados de processos) e `desinstalar_mac.command`.
+
+## eproc TJSP (certificado digital)
+
+- O login usa o certificado A1 na conexão com `certificado-sso.tjsp.jus.br`, sem PJeOffice. O 2FA obrigatório é validado uma vez com "Não usar o 2FA neste dispositivo e navegador". O perfil do navegador do robô fica em `dados/perfil_eproc`.
+- Quando o eproc voltar a pedir o código, a coleta do eproc pausa, o Mac mostra uma notificação e o painel exibe um aviso. Basta rodar `eproc_primeiro_acesso.command`.
+- O robô lê a seção "Citações/Intimações" (abas SP, TJSP e EF) e as listas de cada categoria. Ele **nunca** aciona "Abrir Prazo" nem abre atos: há trava pelo texto do botão e bloqueio de requisições de abertura de prazo ou ciência.
+- Leitura a cada 2 horas, das 7h às 21h, configurável em `eproc_tjsp` no `config.json`.
+- Se o .pfx usar criptografia antiga e o navegador recusar, converta para PEM e preencha `certificado_pem` e `chave_pem`.
+- A senha do certificado fica só nas Chaves do macOS (serviço `painel-eproc-certificado`), nunca em arquivo.
 
 ## Como funciona
 
@@ -26,7 +49,7 @@ Painel pessoal e privado, atualizado a cada hora, com duas abas:
 
 A API do DJEN **bloqueia acessos de fora do Brasil**: o CloudFront recusa a conexão com 403 por país. Por isso o coletor precisa rodar numa máquina com internet brasileira, como o computador do escritório ou uma VPS no Brasil. Serviços em nuvem estrangeiros, como o GitHub Actions, não funcionam.
 
-## Instalação (Windows)
+## Instalação (Windows, só DJEN e DataJud)
 
 1. Instale o Python 3.9 ou superior (python.org), marcando "Add python.exe to PATH".
 2. Baixe esta pasta para o computador. O caminho não deve ter acentos.

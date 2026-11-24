@@ -30,6 +30,7 @@ DADOS = BASE / "dados"
 ARQ_DADOS = DADOS / "comunicacoes.json"
 ARQ_ESTADO = DADOS / "estado.json"
 ARQ_CARTEIRA = DADOS / "processos.json"
+ARQ_EPROC = DADOS / "eproc_tjsp.json"
 ARQ_LOG = DADOS / "coletor.log"
 TEMPLATE = BASE / "painel_template.html"
 SAIDA = BASE / "painel.html"
@@ -244,7 +245,8 @@ def normalizar(item: dict, oab_ref: str) -> dict:
 
 
 # ------------------------------------------------------------------ painel
-def gerar_painel(registros: dict, estado: dict, cfg: dict, carteira: dict | None = None) -> None:
+def gerar_painel(registros: dict, estado: dict, cfg: dict, carteira: dict | None = None,
+                 eproc: dict | None = None) -> None:
     lista = sorted(registros.values(), key=lambda r: (r["disponibilizacao"], r["id"]), reverse=True)
     processos = sorted((carteira or {}).values(),
                        key=lambda r: (r["movimentos"][0]["data"] if r.get("movimentos") else ""), reverse=True)
@@ -263,6 +265,7 @@ def gerar_painel(registros: dict, estado: dict, cfg: dict, carteira: dict | None
             "resumo": estado.get("datajud_resumo", {}),
             "processos": processos,
         },
+        "eproc": {"ativo": bool(cfg.get("eproc_tjsp", {}).get("ativo")), **(eproc or {})},
     }
     dados = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
     html = TEMPLATE.read_text(encoding="utf-8").replace("/*__DADOS__*/null", dados)
@@ -337,8 +340,24 @@ def main() -> int:
         estado["datajud_ultima_execucao"] = datetime.now().isoformat(timespec="seconds")
         gravar_json(ARQ_CARTEIRA, carteira)
 
+    # ---- eproc TJSP (login com certificado; somente leitura)
+    eproc = ler_json(ARQ_EPROC, {})
+    ecfg = cfg.get("eproc_tjsp", {})
+    if ecfg.get("ativo"):
+        agora = datetime.now()
+        ult = eproc.get("ultima_execucao")
+        vencido = not ult or agora - datetime.fromisoformat(ult) >= timedelta(hours=float(ecfg.get("intervalo_horas", 2)))
+        no_horario = int(ecfg.get("horario_inicio", 7)) <= agora.hour < int(ecfg.get("horario_fim", 21))
+        if vencido and no_horario and not eproc.get("precisa_2fa"):
+            try:
+                import eproc_tjsp
+                eproc = eproc_tjsp.coletar(cfg, log)
+            except ImportError as e:
+                eproc["erro"] = f"Playwright não instalado ({e}). Rode instalar_mac.command."
+                log(f"ERRO eproc TJSP: {eproc['erro']}")
+
     gravar_json(ARQ_ESTADO, estado)
-    gerar_painel(registros, estado, cfg, carteira)
+    gerar_painel(registros, estado, cfg, carteira, eproc)
     return codigo
 
 

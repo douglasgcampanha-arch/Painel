@@ -3,3 +3,11 @@ dados/
 painel.html
 *.tmp
 __pycache__/
+
+# certificado digital e ambiente local: NUNCA versionar
+certificado/
+*.pfx
+*.p12
+*.pem
+*.key
+.venv/

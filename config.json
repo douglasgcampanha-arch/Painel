@@ -12,5 +12,14 @@
   "processos": [],
   "datajud_intervalo_horas": 6,
   "datajud_max_por_execucao": 40,
-  "datajud_chave": ""
+  "datajud_chave": "",
+  "eproc_tjsp": {
+    "ativo": false,
+    "certificado_pfx": "certificado/certificado.pfx",
+    "intervalo_horas": 2,
+    "horario_inicio": 7,
+    "horario_fim": 21,
+    "certificado_pem": "",
+    "chave_pem": ""
+  }
 }
