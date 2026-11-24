@@ -16,15 +16,35 @@ case "$DIR" in
     exit 1;;
 esac
 
-if ! command -v python3 >/dev/null; then
-  echo "Python 3 não encontrado. Instale em https://www.python.org/downloads/macos/ e rode de novo."
-  exit 1
+# O Playwright precisa de Python 3.9 a 3.13 (versões mais novas ainda não têm todos os componentes prontos).
+PY=""
+for c in python3.13 python3.12 python3.11 \
+         /opt/homebrew/opt/python@3.13/bin/python3.13 /opt/homebrew/opt/python@3.12/bin/python3.12 \
+         /Library/Frameworks/Python.framework/Versions/3.13/bin/python3.13 \
+         /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12 python3; do
+  if command -v "$c" >/dev/null 2>&1; then
+    v=$("$c" -c 'import sys; print(sys.version_info[1] if sys.version_info[0]==3 else 0)')
+    if [ "$v" -ge 9 ] && [ "$v" -le 13 ]; then PY="$c"; break; fi
+  fi
+done
+if [ -z "$PY" ]; then
+  echo "Nenhum Python compatível (3.9 a 3.13) encontrado."
+  if command -v brew >/dev/null; then
+    echo "Instalando Python 3.13 pelo Homebrew..."
+    brew install python@3.13
+    PY=/opt/homebrew/opt/python@3.13/bin/python3.13
+  else
+    echo "Instale o Python 3.13 em https://www.python.org/downloads/macos/ e rode de novo."
+    exit 1
+  fi
 fi
+echo "Usando $PY ($("$PY" --version))"
 
 echo; echo "1/4 Preparando o ambiente Python..."
-python3 -m venv .venv
+rm -rf .venv
+"$PY" -m venv .venv
 .venv/bin/pip install -q --upgrade pip
-.venv/bin/pip install -q "playwright==1.49.1"
+.venv/bin/pip install -q --only-binary=:all: "playwright==1.49.1"
 .venv/bin/python -m playwright install chromium
 
 USAR_EPROC=n
