@@ -22,11 +22,14 @@ from datetime import date, datetime, timedelta
 from html.parser import HTMLParser
 from pathlib import Path
 
+import datajud
+
 BASE = Path(__file__).resolve().parent
 CONFIG = BASE / "config.json"
 DADOS = BASE / "dados"
 ARQ_DADOS = DADOS / "comunicacoes.json"
 ARQ_ESTADO = DADOS / "estado.json"
+ARQ_CARTEIRA = DADOS / "processos.json"
 ARQ_LOG = DADOS / "coletor.log"
 TEMPLATE = BASE / "painel_template.html"
 SAIDA = BASE / "painel.html"
@@ -241,8 +244,10 @@ def normalizar(item: dict, oab_ref: str) -> dict:
 
 
 # ------------------------------------------------------------------ painel
-def gerar_painel(registros: dict, estado: dict, cfg: dict) -> None:
+def gerar_painel(registros: dict, estado: dict, cfg: dict, carteira: dict | None = None) -> None:
     lista = sorted(registros.values(), key=lambda r: (r["disponibilizacao"], r["id"]), reverse=True)
+    processos = sorted((carteira or {}).values(),
+                       key=lambda r: (r["movimentos"][0]["data"] if r.get("movimentos") else ""), reverse=True)
     payload = {
         "titular": cfg.get("titular", ""),
         "oabs": [f"{o['numero']}/{o['uf']}" for o in cfg["oabs"]],
@@ -251,6 +256,13 @@ def gerar_painel(registros: dict, estado: dict, cfg: dict) -> None:
         "erro": estado.get("ultimo_erro", ""),
         "novas_ultima_coleta": estado.get("novas_ultima_coleta", 0),
         "comunicacoes": lista,
+        "datajud": {
+            "ativo": bool(cfg.get("datajud_ativo", True)),
+            "ultima_execucao": estado.get("datajud_ultima_execucao", ""),
+            "erro": estado.get("datajud_erro", ""),
+            "resumo": estado.get("datajud_resumo", {}),
+            "processos": processos,
+        },
     }
     dados = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
     html = TEMPLATE.read_text(encoding="utf-8").replace("/*__DADOS__*/null", dados)
@@ -305,8 +317,28 @@ def main() -> int:
         log(f"ERRO: {e}")
         codigo = 1
 
+    # ---- DataJud: movimentações da carteira (todos os sistemas: PJe, eproc, e-SAJ, Projudi...)
+    carteira: dict = ler_json(ARQ_CARTEIRA, {})
+    if cfg.get("datajud_ativo", True):
+        numeros = {}
+        for r in registros.values():
+            n = datajud.so_digitos(r.get("processo", ""))
+            if len(n) == 20:
+                numeros[n] = r.get("tribunal", "")
+        try:
+            resumo = datajud.atualizar_carteira(carteira, numeros, cfg, log)
+            estado["datajud_resumo"] = resumo
+            estado["datajud_erro"] = ""
+            log(f"DataJud: {resumo['consultados']} processo(s) consultado(s), "
+                f"{resumo['novas_movimentacoes']} movimentação(ões) nova(s), {resumo['erros']} erro(s)")
+        except Exception as e:
+            estado["datajud_erro"] = str(e)
+            log(f"ERRO DataJud: {e}")
+        estado["datajud_ultima_execucao"] = datetime.now().isoformat(timespec="seconds")
+        gravar_json(ARQ_CARTEIRA, carteira)
+
     gravar_json(ARQ_ESTADO, estado)
-    gerar_painel(registros, estado, cfg)
+    gerar_painel(registros, estado, cfg, carteira)
     return codigo
 
 

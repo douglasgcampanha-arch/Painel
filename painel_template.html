@@ -80,10 +80,27 @@ input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
 mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
 .empty{text-align:center;color:var(--muted);padding:40px 16px;background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius)}
 .foot{margin-top:28px;color:var(--muted);font-size:12px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.tabs button{font:inherit;font-weight:600;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);
+  padding:8px 14px;margin-bottom:-1px;cursor:pointer}
+.tabs button[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
+.tc{font-size:12px;font-weight:600;background:var(--new-soft);color:var(--new);border-radius:999px;padding:1px 7px;margin-left:4px}
+.tc:empty{display:none}
+.filters.f3{grid-template-columns:2fr 1fr 1fr}
+.last{font-size:14px;margin-top:8px}
+.last b{font-weight:600}
+.tl{list-style:none;margin:10px 0 0;padding:0;border-left:2px solid var(--line)}
+.tl li{position:relative;padding:4px 0 8px 16px;font-size:14px}
+.tl li::before{content:"";position:absolute;left:-5px;top:11px;width:8px;height:8px;border-radius:50%;background:var(--line)}
+.tl li.nv::before{background:var(--new)}
+.tl .d{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;margin-right:6px}
+.tl .c{color:var(--muted);font-size:13px}
+.errline{font-size:13px;color:var(--warn);margin-top:6px}
 @media (max-width:760px){
   .kpis{grid-template-columns:repeat(2,1fr)}
   .filters{grid-template-columns:1fr 1fr}
   .filters .q{grid-column:1/-1}
+  .filters.f3{grid-template-columns:1fr 1fr}
   .upd{text-align:left}
 }
 </style>
@@ -99,6 +116,12 @@ mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
   </header>
   <div id="banners"></div>
 
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="djen" aria-selected="true">Intimações <span class="tc" id="tc-djen"></span></button>
+    <button role="tab" data-tab="proc" aria-selected="false">Movimentações <span class="tc" id="tc-proc"></span></button>
+  </nav>
+
+  <div id="tab-djen">
   <section class="kpis" aria-label="Resumo">
     <button class="kpi hl" data-preset="pend"><div class="n" id="k-pend">0</div><div class="l">Pendentes de análise</div></button>
     <button class="kpi" data-preset="hoje"><div class="n" id="k-hoje">0</div><div class="l">Disponibilizadas hoje</div></button>
@@ -124,8 +147,25 @@ mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
   </section>
   <div class="count"><span id="count"></span><span><button class="linkbtn" id="mark-all">Marcar exibidas como tratadas</button></span></div>
   <div class="list" id="list"></div>
+  </div>
 
-  <p class="foot">Publicação e início de prazo são <b>estimativas</b>: publicação no 1º dia útil seguinte à disponibilização e contagem a partir do dia útil seguinte (Lei 11.419/2006, art. 4º, §§ 3º e 4º; CPC, art. 224). O cálculo considera apenas feriados nacionais, Carnaval, Sexta-feira Santa e Corpus Christi. Não considera feriados locais, suspensões de expediente nem o recesso forense, e não substitui a conferência no sistema do tribunal. A marcação "tratada" fica salva apenas neste navegador.</p>
+  <div id="tab-proc" hidden>
+    <div id="dj-banner"></div>
+    <section class="filters f3" aria-label="Filtros de processos">
+      <input class="q" id="p-q" type="search" placeholder="Buscar número, classe, órgão ou movimento…" autocomplete="off">
+      <select id="p-trib"><option value="">Todos os tribunais</option></select>
+      <select id="p-show">
+        <option value="novas">Com movimentação nova</option>
+        <option value="all" selected>Todos os processos</option>
+        <option value="erro">Não localizados / erro</option>
+      </select>
+    </section>
+    <div class="count"><span id="p-count"></span><span><button class="linkbtn" id="p-seen-all">Marcar todas como vistas</button></span></div>
+    <div class="list" id="p-list"></div>
+  </div>
+
+  <p class="foot">Publicação e início de prazo são <b>estimativas</b>: publicação no 1º dia útil seguinte à disponibilização e contagem a partir do dia útil seguinte (Lei 11.419/2006, art. 4º, §§ 3º e 4º; CPC, art. 224). O cálculo considera apenas feriados nacionais, Carnaval, Sexta-feira Santa e Corpus Christi. Não considera feriados locais, suspensões de expediente nem o recesso forense, e não substitui a conferência no sistema do tribunal. A marcação "tratada" fica salva apenas neste navegador.<br>
+  As movimentações vêm da API Pública do DataJud (CNJ), que reúne os dados enviados por todos os tribunais e sistemas (PJe, eproc, e-SAJ, Projudi e outros). Os tribunais enviam em lotes, então pode haver defasagem de horas a dias. Processos sigilosos não aparecem, e o teor das decisões não está disponível nessa fonte.</p>
 </div>
 
 <script>
@@ -172,7 +212,8 @@ const DADOS = /*__DADOS__*/null;
   if (fs.trib && tribs.includes(fs.trib)) $("#f-trib").value = fs.trib;
 
   function kpis(){
-    $("#k-pend").textContent = C.filter(c => !tratadas.has(c.id)).length;
+    const pend = C.filter(c => !tratadas.has(c.id)).length;
+    $("#k-pend").textContent = pend; $("#tc-djen").textContent = pend || "";
     $("#k-hoje").textContent = C.filter(c => c.disponibilizacao === hojeISO).length;
     $("#k-7d").textContent = C.filter(c => c.disponibilizacao >= diasAtras(7)).length;
     $("#k-all").textContent = C.length;
@@ -270,10 +311,115 @@ const DADOS = /*__DADOS__*/null;
   let tq; $("#f-q").addEventListener("input", () => { clearTimeout(tq); tq = setTimeout(render, 150); });
   ["#f-trib","#f-status","#f-per"].forEach(s => $(s).addEventListener("change", render));
 
-  // recarrega a cada 10 min para pegar a coleta horária (não recarrega com teor aberto ou busca ativa)
-  setInterval(() => { if (!abertos.size && !$("#f-q").value) location.reload(); }, 10*60*1000);
+  // ------------------------------------------------ Movimentações (DataJud)
+  const DJ = D.datajud || {processos:[]};
+  const P = DJ.processos || [];
+  const KEYV = "painel-djen-vistos";
+  const vistos = store.get(KEYV, {});
+  const pAbertos = new Set(), pTodos = new Set();
+  const dataMov = iso => { if(!iso) return "—"; const t = new Date(iso); return isNaN(t) ? fmt(iso) : t.toLocaleDateString("pt-BR"); };
+  const novasDe = p => (p.movimentos||[]).filter(m => m.nova_em && (!vistos[p.numero] || m.nova_em > vistos[p.numero]));
+  P.forEach(p => {
+    const i0 = (p.instancias||[])[0] || {};
+    p._trib = i0.tribunal || (p.alias||"").toUpperCase();
+    p._busca = norm([p.numero, p.numero.replace(/\D/g,""), p._trib,
+      (p.instancias||[]).map(i => [i.classe, i.orgao, i.sistema, (i.assuntos||[]).join(" ")].join(" ")).join(" "),
+      (p.movimentos||[]).slice(0,30).map(m => m.nome + " " + m.complemento).join(" ")].join(" "));
+  });
+  const ptribs = [...new Set(P.map(p => p._trib).filter(Boolean))].sort();
+  $("#p-trib").insertAdjacentHTML("beforeend", ptribs.map(t => `<option>${esc(t)}</option>`).join(""));
+
+  if (!DJ.ativo) $("#dj-banner").innerHTML = `<div class="banner warn">Consulta ao DataJud desativada no config.json.</div>`;
+  else if (DJ.erro) $("#dj-banner").innerHTML = `<div class="banner err"><b>Falha na consulta ao DataJud:</b> ${esc(DJ.erro)}</div>`;
+  else if (DJ.resumo && DJ.resumo.erros) $("#dj-banner").innerHTML = `<div class="banner warn">${DJ.resumo.erros} processo(s) não puderam ser consultados na última execução (instabilidade do DataJud). Eles serão consultados de novo na próxima execução.</div>`;
+
+  function pFiltrados(){
+    const termos = norm($("#p-q").value.trim()).split(/\s+/).filter(Boolean);
+    const trib = $("#p-trib").value, show = $("#p-show").value;
+    return P.filter(p =>
+      (!trib || p._trib === trib) &&
+      (show !== "novas" || novasDe(p).length) &&
+      (show !== "erro" || p.erro) &&
+      termos.every(t => p._busca.includes(t)));
+  }
+
+  function pRender(){
+    const totalNovas = P.reduce((a,p) => a + (novasDe(p).length ? 1 : 0), 0);
+    $("#tc-proc").textContent = totalNovas || "";
+    const L = pFiltrados();
+    $("#p-count").textContent = `${L.length} processo(s) · última consulta ao DataJud: ${fmtDT(DJ.ultima_execucao)}`;
+    $("#p-seen-all").style.display = totalNovas ? "" : "none";
+    if (!L.length){
+      $("#p-list").innerHTML = `<div class="empty">${P.length ? "Nenhum processo com esses filtros." : "A carteira é montada automaticamente com os processos das intimações do DJEN e com os números incluídos em \"processos\" no config.json."}</div>`;
+      return;
+    }
+    $("#p-list").innerHTML = L.map(p => {
+      const nv = novasDe(p), nvSet = new Set(nv.map(m => m.chave));
+      const inst = p.instancias || [];
+      const sistemas = [...new Set(inst.map(i => i.sistema).filter(Boolean))];
+      const graus = [...new Set(inst.map(i => i.grau).filter(Boolean))];
+      const i0 = inst[0] || {};
+      const ult = (p.movimentos||[])[0];
+      const aberto = pAbertos.has(p.numero), todos = pTodos.has(p.numero);
+      const movs = (p.movimentos||[]).slice(0, todos ? undefined : 40);
+      return `<article class="card" data-num="${esc(p.numero)}">
+        <div class="top">
+          <div class="meta">
+            <span class="tag trib">${esc(p._trib || "—")}</span>
+            ${sistemas.map(s => `<span class="tag">${esc(s)}</span>`).join("")}
+            ${graus.map(g => `<span class="tag">${esc(g)}</span>`).join("")}
+            ${nv.length ? `<span class="tag new">${nv.length} nova(s)</span>` : ""}
+            ${p.origem === "manual" ? `<span class="tag">incluído manualmente</span>` : ""}
+          </div>
+          <span class="tag">Consultado em ${esc(fmtDT(p.ultima_consulta))}</span>
+        </div>
+        <div class="proc">${esc(p.numero)} <button class="copy" data-copy="${esc(p.numero)}">copiar</button></div>
+        <div class="orgao">${esc([i0.orgao, i0.classe].filter(Boolean).join(" · "))}</div>
+        ${i0.assuntos && i0.assuntos.length ? `<div class="partes">${esc(i0.assuntos.join("; "))}</div>` : ""}
+        ${ult ? `<div class="last">Última movimentação: <b>${esc(ult.nome)}</b> <span class="c">em ${esc(dataMov(ult.data))}</span>${ult.complemento ? ` <span class="orgao">(${esc(ult.complemento)})</span>` : ""}</div>` : ""}
+        ${p.erro ? `<div class="errline">${esc(p.erro)}</div>` : ""}
+        <div class="actions">
+          ${(p.movimentos||[]).length ? `<button class="btn" data-pact="toggle">${aberto ? "Ocultar movimentações" : `Ver movimentações (${p.movimentos.length})`}</button>` : ""}
+          ${nv.length ? `<button class="btn primary" data-pact="seen">Marcar como vistas</button>` : ""}
+        </div>
+        ${aberto ? `<ul class="tl">${movs.map(m => `<li class="${nvSet.has(m.chave) ? "nv" : ""}"><span class="d">${esc(dataMov(m.data))}</span>${esc(m.nome)}${m.grau ? ` <span class="c">[${esc(m.grau)}]</span>` : ""}${m.complemento ? `<div class="c">${esc(m.complemento)}</div>` : ""}</li>`).join("")}</ul>
+          ${!todos && p.movimentos.length > 40 ? `<button class="linkbtn" data-pact="all">Ver todas as ${p.movimentos.length}</button>` : ""}` : ""}
+      </article>`;
+    }).join("");
+  }
+
+  $("#p-list").addEventListener("click", e => {
+    const cp = e.target.closest("[data-copy]");
+    if (cp){ navigator.clipboard && navigator.clipboard.writeText(cp.dataset.copy).then(() => { cp.textContent = "copiado"; setTimeout(() => cp.textContent = "copiar", 1200); }).catch(()=>{}); return; }
+    const b = e.target.closest("[data-pact]"); if (!b) return;
+    const n = b.closest(".card").dataset.num;
+    if (b.dataset.pact === "toggle"){ if (pAbertos.has(n)) { pAbertos.delete(n); pTodos.delete(n); } else pAbertos.add(n); }
+    if (b.dataset.pact === "all") pTodos.add(n);
+    if (b.dataset.pact === "seen"){ vistos[n] = new Date().toISOString().slice(0,19); store.set(KEYV, vistos); }
+    pRender();
+  });
+  $("#p-seen-all").addEventListener("click", () => {
+    const agora = new Date().toISOString().slice(0,19);
+    P.forEach(p => { if (novasDe(p).length) vistos[p.numero] = agora; });
+    store.set(KEYV, vistos); pRender();
+  });
+  let tp; $("#p-q").addEventListener("input", () => { clearTimeout(tp); tp = setTimeout(pRender, 150); });
+  ["#p-trib","#p-show"].forEach(s => $(s).addEventListener("change", pRender));
+
+  // abas
+  function aba(t){
+    document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
+    $("#tab-djen").hidden = t !== "djen"; $("#tab-proc").hidden = t !== "proc";
+    store.set("painel-djen-aba", t);
+  }
+  document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => aba(b.dataset.tab)));
+  aba(store.get("painel-djen-aba", "djen"));
+
+  // recarrega a cada 10 min para pegar a coleta horária (não recarrega com conteúdo aberto ou busca ativa)
+  setInterval(() => { if (!abertos.size && !pAbertos.size && !$("#f-q").value && !$("#p-q").value) location.reload(); }, 10*60*1000);
 
   render();
+  pRender();
 })();
 </script>
 </body>

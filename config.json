@@ -1,8 +1,16 @@
 {
   "titular": "Dr. Douglas Gonçalves Campanhã",
   "oabs": [
-    {"numero": "350073", "uf": "SP"}
+    {
+      "numero": "350073",
+      "uf": "SP"
+    }
   ],
   "dias_carga_inicial": 30,
-  "dias_sobreposicao": 3
+  "dias_sobreposicao": 3,
+  "datajud_ativo": true,
+  "processos": [],
+  "datajud_intervalo_horas": 6,
+  "datajud_max_por_execucao": 40,
+  "datajud_chave": ""
 }
