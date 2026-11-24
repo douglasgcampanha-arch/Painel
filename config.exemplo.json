@@ -24,5 +24,13 @@
       "decurso"
     ]
   },
-  "datajud_max_falhas_seguidas": 3
+  "datajud_max_falhas_seguidas": 3,
+  "analise_ia": {
+    "ativo": false,
+    "modelo": "claude-opus-5-5",
+    "esforco": "medium",
+    "max_por_execucao": 30,
+    "fallback_recusa": true,
+    "clientes": []
+  }
 }

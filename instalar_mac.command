@@ -44,7 +44,7 @@ echo; echo "1/4 Preparando o ambiente Python..."
 rm -rf .venv
 "$PY" -m venv .venv
 .venv/bin/pip install -q --upgrade pip
-.venv/bin/pip install -q --only-binary=:all: "playwright==1.49.1"
+.venv/bin/pip install -q --only-binary=:all: -r requirements.txt
 .venv/bin/python -m playwright install chromium
 
 [ -f config.json ] || cp config.exemplo.json config.json

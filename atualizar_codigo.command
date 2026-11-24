@@ -6,5 +6,6 @@ RAMO="claude/gifted-volta-vxo3s6"
 git fetch -q origin "$RAMO" || { echo "Falha ao baixar. Rode: gh auth login"; exit 1; }
 git reset -q --hard FETCH_HEAD
 echo "Código atualizado: $(git log -1 --format='%h %s')"
+.venv/bin/pip install -q --only-binary=:all: -r requirements.txt
 .venv/bin/python djen_painel.py
 open painel.html

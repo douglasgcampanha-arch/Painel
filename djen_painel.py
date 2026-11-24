@@ -248,7 +248,9 @@ def normalizar(item: dict, oab_ref: str) -> dict:
 # ------------------------------------------------------------------ painel
 def gerar_painel(registros: dict, estado: dict, cfg: dict, carteira: dict | None = None,
                  eproc: dict | None = None) -> None:
-    lista = sorted(registros.values(), key=lambda r: (r["disponibilizacao"], r["id"]), reverse=True)
+    analises = ler_json(DADOS / "analises.json", {})
+    lista = sorted(({**r, "analise": analises.get(r["id"])} for r in registros.values()),
+                   key=lambda r: (r["disponibilizacao"], r["id"]), reverse=True)
     processos = sorted((carteira or {}).values(),
                        key=lambda r: (r["movimentos"][0]["data"] if r.get("movimentos") else ""), reverse=True)
     payload = {
@@ -259,6 +261,7 @@ def gerar_painel(registros: dict, estado: dict, cfg: dict, carteira: dict | None
         "erro": estado.get("ultimo_erro", ""),
         "novas_ultima_coleta": estado.get("novas_ultima_coleta", 0),
         "comunicacoes": lista,
+        "analise_ia_ativa": bool(cfg.get("analise_ia", {}).get("ativo")),
         "datajud": {
             "ativo": bool(cfg.get("datajud_ativo", True)),
             "ultima_execucao": estado.get("datajud_ultima_execucao", ""),
@@ -368,6 +371,15 @@ def main() -> int:
     carteira: dict = ler_json(ARQ_CARTEIRA, {})
     gravar_json(ARQ_ESTADO, estado)
     gerar_painel(registros, estado, cfg, carteira, eproc)
+
+    # ---- Análise das publicações com IA (cliente, manifestação, orientação)
+    if cfg.get("analise_ia", {}).get("ativo"):
+        try:
+            import analise_ia
+            analise_ia.analisar_pendentes(registros, cfg, log)
+            gerar_painel(registros, estado, cfg, carteira, eproc)
+        except Exception as e:
+            log(f"ERRO Análise IA: {e}")
 
     # ---- DataJud: movimentações da carteira (todos os sistemas: PJe, eproc, e-SAJ, Projudi...)
     # se a última rodada foi interrompida por instabilidade do CNJ, espera algumas horas

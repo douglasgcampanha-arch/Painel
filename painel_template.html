@@ -102,6 +102,14 @@ mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
 .cols dt{color:var(--muted)}
 .cols dd{margin:0;overflow-wrap:anywhere}
 .tag.warnt{background:var(--warn-soft);color:var(--warn);font-weight:600}
+.btn.ia{border-color:var(--accent);color:var(--accent);font-weight:600}
+.analise{margin-top:12px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:12px 14px;background:var(--surface);font-size:14px}
+.analise p{margin:6px 0}
+.analise .an-h{font-size:13px;color:var(--muted)}
+.analise .an-s{margin-top:10px}
+.analise ul,.analise ol{margin:4px 0 0;padding-left:20px}
+.analise li{margin:2px 0}
+.analise .c,.cols .c{color:var(--muted);font-size:13px}
 .errline{font-size:13px;color:var(--warn);margin-top:6px}
 @media (max-width:760px){
   .kpis{grid-template-columns:repeat(2,1fr)}
@@ -144,6 +152,8 @@ mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
       <option value="pend">Pendentes</option>
       <option value="done">Tratadas</option>
       <option value="all">Todas</option>
+      <option value="manif">Exigem manifestação</option>
+      <option value="cliente">Dirigidas ao meu cliente</option>
     </select>
     <select id="f-per">
       <option value="0">Hoje</option>
@@ -247,6 +257,40 @@ const DADOS = /*__DADOS__*/null;
     $("#k-all").textContent = C.length;
   }
 
+  const analAbertas = new Set();
+  const TIPO_ATO = {despacho:"Despacho", decisao_interlocutoria:"Decisão interlocutória", sentenca:"Sentença", acordao:"Acórdão",
+    ato_ordinatorio:"Ato ordinatório", intimacao_pauta_audiencia:"Pauta / audiência", edital:"Edital", citacao:"Citação", outro:"Outro"};
+  const lista = arr => (arr && arr.length) ? `<ul>${arr.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  function textoAnalise(c, A, prazoTxt){
+    const L = [`Processo ${c.processo} (${c.tribunal}) - disponibilizada em ${fmt(c.disponibilizacao)}`,
+      `Ato: ${TIPO_ATO[A.tipo_ato] || A.tipo_ato}. ${A.resumo}`,
+      `Cliente: ${A.dirigido_ao_cliente}${A.cliente_identificado ? " - " + A.cliente_identificado : ""}. ${A.justificativa_cliente}`,
+      `Manifestação: ${A.exige_manifestacao}${A.providencia ? " - " + A.providencia : ""}${prazoTxt ? " - prazo " + prazoTxt : ""}${A.base_do_prazo ? " (" + A.base_do_prazo + ")" : ""}`,
+      `Publicação (est.): ${fmt(c.publicacao_estimada)} · início do prazo (est.): ${fmt(c.inicio_prazo_estimado)}`,
+      "", "Orientação: " + A.orientacao];
+    if (A.checklist.length) L.push("", "Checklist:", ...A.checklist.map(x => "- " + x));
+    if (A.estrutura_peca.length) L.push("", "Estrutura da peça:", ...A.estrutura_peca.map((x, i) => `${i + 1}. ${x}`));
+    if (A.pontos_de_atencao.length) L.push("", "Pontos de atenção:", ...A.pontos_de_atencao.map(x => "- " + x));
+    return L.join("\n");
+  }
+  function blocoAnalise(c, A, prazoTxt){
+    return `<div class="analise">
+      <div class="an-h"><b>${esc(TIPO_ATO[A.tipo_ato] || A.tipo_ato)}</b> · confiança ${esc(A.confianca)}</div>
+      <p>${esc(A.resumo)}</p>
+      <dl class="cols">
+        <dt>Para o cliente?</dt><dd><b>${esc({sim:"Sim", nao:"Não", incerto:"Incerto"}[A.dirigido_ao_cliente] || "")}</b>${A.cliente_identificado ? " - " + esc(A.cliente_identificado) : ""}<br><span class="c">${esc(A.justificativa_cliente)}</span></dd>
+        <dt>Manifestação</dt><dd><b>${esc({sim:"Sim", nao:"Não", verificar:"Verificar"}[A.exige_manifestacao] || "")}</b>${A.providencia ? " - " + esc(A.providencia) : ""}</dd>
+        <dt>Prazo</dt><dd>${prazoTxt ? esc(prazoTxt) : "Não informado"}${A.base_do_prazo ? ` <span class="c">(${esc(A.base_do_prazo)})</span>` : ""}<br><span class="c">Início estimado: ${esc(fmt(c.inicio_prazo_estimado))}</span></dd>
+      </dl>
+      <div class="an-s"><b>Orientação</b><p>${esc(A.orientacao)}</p></div>
+      ${A.checklist.length ? `<div class="an-s"><b>Para deixar preparado</b>${lista(A.checklist)}</div>` : ""}
+      ${A.estrutura_peca.length ? `<div class="an-s"><b>Estrutura da peça</b><ol>${A.estrutura_peca.map(x => `<li>${esc(x)}</li>`).join("")}</ol></div>` : ""}
+      ${A.pontos_de_atencao.length ? `<div class="an-s"><b>Pontos de atenção</b>${lista(A.pontos_de_atencao)}</div>` : ""}
+      <div class="actions"><button class="btn" data-copy-an="${esc(c.id)}">Copiar análise</button>
+        <span class="c">Gerada por IA (${esc(A._modelo || "")}) em ${esc(fmtDT(A._gerado_em))}. Conferir antes de agir.</span></div>
+    </div>`;
+  }
+
   function filtrados(){
     const q = norm($("#f-q").value.trim());
     const termos = q ? q.split(/\s+/) : [];
@@ -254,7 +298,10 @@ const DADOS = /*__DADOS__*/null;
     const desde = per === "all" ? "" : diasAtras(+per);
     return C.filter(c =>
       (!trib || c.tribunal === trib) &&
-      (st === "all" || (st === "pend") !== tratadas.has(c.id)) &&
+      (st === "all" ? true
+        : st === "manif" ? (c.analise && c.analise.exige_manifestacao !== "nao")
+        : st === "cliente" ? (c.analise && c.analise.dirigido_ao_cliente !== "nao")
+        : (st === "pend") !== tratadas.has(c.id)) &&
       (!desde || c.disponibilizacao >= desde) &&
       termos.every(t => c._busca.includes(t)));
   }
@@ -285,6 +332,8 @@ const DADOS = /*__DADOS__*/null;
       const done = tratadas.has(c.id);
       const nova = !done && c.capturado_em && new Date(c.capturado_em).getTime() > recente;
       const aberto = abertos.has(c.id);
+      const A = c.analise, anAberta = analAbertas.has(c.id);
+      const prazoTxt = A && A.prazo_dias ? `${A.prazo_dias} dias ${A.prazo_tipo === "uteis" ? "úteis" : A.prazo_tipo === "corridos" ? "corridos" : ""}`.trim() : "";
       return `<article class="card${done ? " done" : ""}" data-id="${esc(c.id)}">
         <div class="top">
           <div class="meta">
@@ -293,6 +342,9 @@ const DADOS = /*__DADOS__*/null;
             ${c.tipo_documento ? `<span class="tag">${esc(c.tipo_documento)}</span>` : ""}
             ${nova ? `<span class="tag new">Nova</span>` : ""}
             ${done ? `<span class="tag ok">Tratada</span>` : ""}
+            ${A ? `<span class="tag ${A.dirigido_ao_cliente === "sim" ? "ok" : A.dirigido_ao_cliente === "nao" ? "" : "warnt"}">Cliente: ${esc({sim:"sim", nao:"não", incerto:"incerto"}[A.dirigido_ao_cliente] || "?")}</span>
+                   <span class="tag ${A.exige_manifestacao === "sim" ? "new" : A.exige_manifestacao === "verificar" ? "warnt" : ""}">${A.exige_manifestacao === "sim" ? "Manifestar" + (prazoTxt ? " · " + esc(prazoTxt) : "") : A.exige_manifestacao === "verificar" ? "Verificar se manifesta" : "Sem manifestação"}</span>
+                   ${A.urgencia === "alta" ? `<span class="tag new">Urgente</span>` : ""}` : ""}
           </div>
           <span class="tag">Disponibilizada em ${esc(fmt(c.disponibilizacao))}</span>
         </div>
@@ -304,10 +356,13 @@ const DADOS = /*__DADOS__*/null;
           <span>Início do prazo (est.): <b>${esc(fmt(c.inicio_prazo_estimado))}</b></span>
         </div>
         <div class="actions">
+          ${A ? `<button class="btn${anAberta ? "" : " ia"}" data-act="analise">${anAberta ? "Ocultar análise" : "Análise"}</button>`
+              : (D.analise_ia_ativa ? `<span class="tag">Análise pendente</span>` : "")}
           <button class="btn" data-act="toggle">${aberto ? "Ocultar teor" : "Ver teor"}</button>
           <button class="btn${done ? "" : " primary"}" data-act="done">${done ? "Reabrir" : "Marcar como tratada"}</button>
           ${c.link ? `<a class="btn" href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">Documento</a>` : ""}
         </div>
+        ${A && anAberta ? blocoAnalise(c, A, prazoTxt) : ""}
         ${aberto ? `<div class="texto">${realce(c.texto || "Teor não disponível.")}</div>` : ""}
       </article>`;
     }).join("");
@@ -316,8 +371,14 @@ const DADOS = /*__DADOS__*/null;
   $("#list").addEventListener("click", e => {
     const cp = e.target.closest("[data-copy]");
     if (cp){ navigator.clipboard && navigator.clipboard.writeText(cp.dataset.copy).then(() => { cp.textContent = "copiado"; setTimeout(() => cp.textContent = "copiar", 1200); }).catch(()=>{}); return; }
+    const ca = e.target.closest("[data-copy-an]");
+    if (ca){ const c = C.find(x => String(x.id) === ca.dataset.copyAn); const A = c.analise;
+      const pt = A.prazo_dias ? `${A.prazo_dias} dias ${A.prazo_tipo === "uteis" ? "úteis" : A.prazo_tipo === "corridos" ? "corridos" : ""}`.trim() : "";
+      navigator.clipboard && navigator.clipboard.writeText(textoAnalise(c, A, pt)).then(() => { ca.textContent = "Copiada"; setTimeout(() => ca.textContent = "Copiar análise", 1500); }).catch(()=>{});
+      return; }
     const b = e.target.closest("[data-act]"); if (!b) return;
     const id = b.closest(".card").dataset.id;
+    if (b.dataset.act === "analise") analAbertas.has(id) ? analAbertas.delete(id) : analAbertas.add(id);
     if (b.dataset.act === "toggle") abertos.has(id) ? abertos.delete(id) : abertos.add(id);
     if (b.dataset.act === "done"){ tratadas.has(id) ? tratadas.delete(id) : tratadas.add(id); store.set(KEY, [...tratadas]); }
     render();
@@ -505,7 +566,7 @@ const DADOS = /*__DADOS__*/null;
   aba(abaSalva === "eproc" && !E.ativo ? "djen" : abaSalva);
 
   // recarrega a cada 10 min para pegar a coleta horária (não recarrega com conteúdo aberto ou busca ativa)
-  setInterval(() => { if (!abertos.size && !pAbertos.size && !$("#f-q").value && !$("#p-q").value) location.reload(); }, 10*60*1000);
+  setInterval(() => { if (!abertos.size && !analAbertas.size && !pAbertos.size && !$("#f-q").value && !$("#p-q").value) location.reload(); }, 10*60*1000);
 
   render();
   pRender();

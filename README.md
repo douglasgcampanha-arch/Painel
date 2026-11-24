@@ -37,6 +37,22 @@ Arquivos de apoio: `atualizar_agora.command`, `eproc_primeiro_acesso.command` (r
 - Se a coleta falhar, o painel mostra o erro e mantém o histórico já salvo.
 - `dados/` e `painel.html` ficam fora do Git, porque contêm dados de processos e clientes.
 
+## Análise das publicações com IA
+
+Cada publicação do DJEN ganha o botão **Análise**, gerado pelo Claude (API da Anthropic). A análise indica:
+
+- se o ato é dirigido ao seu cliente (e qual parte/polo);
+- se exige manifestação, a providência e o prazo;
+- orientação, checklist para deixar preparado, estrutura da peça e pontos de atenção.
+
+Há também os filtros "Exigem manifestação" e "Dirigidas ao meu cliente", e o botão "Copiar análise".
+
+- Para ativar, rode `bash configurar_analise_ia.command`: ele pede a chave da API (console.anthropic.com), guarda nas Chaves do macOS e pergunta os nomes dos clientes.
+- A análise é feita pelo coletor, só para publicações novas (até `max_por_execucao` por execução), e fica em `dados/analises.json`.
+- O uso da API é cobrado à parte. Modelo e esforço ficam em `analise_ia` no `config.json`.
+- O teor das publicações é enviado à API da Anthropic para análise.
+- A análise é um apoio: conferir sempre o teor e os autos antes de agir.
+
 ## DataJud (movimentações em todos os sistemas)
 
 - A carteira é montada sozinha: todo processo que aparece numa intimação do DJEN passa a ser acompanhado. Para incluir outros processos, liste os números em `"processos"` no `config.json`.
