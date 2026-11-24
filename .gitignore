@@ -1,0 +1,5 @@
+# dados de processos/clientes: ficam só na máquina local
+dados/
+painel.html
+*.tmp
+__pycache__/

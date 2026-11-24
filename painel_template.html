@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Painel DJEN</title>
+<style>
+:root{
+  --bg:#f6f5f2; --surface:#ffffff; --surface-2:#f0eee9; --line:#e2dfd8;
+  --text:#1d1f23; --muted:#62666e; --accent:#1f4e79; --accent-soft:#e3ecf5;
+  --new:#9a3412; --new-soft:#fbe9dd; --ok:#2f6b3a; --ok-soft:#e2f0e4;
+  --warn:#8a5a00; --warn-soft:#fdf1d6; --err:#a1251b; --err-soft:#fbe2df;
+  --radius:10px; --shadow:0 1px 2px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15171a; --surface:#1d2024; --surface-2:#25292e; --line:#33373d;
+    --text:#e8e6e1; --muted:#a2a6ad; --accent:#8db7e0; --accent-soft:#1f2c3a;
+    --new:#f0a374; --new-soft:#3a251a; --ok:#8fcf9a; --ok-soft:#1e3123;
+    --warn:#e8c06a; --warn-soft:#3a2f17; --err:#f19a90; --err-soft:#3d1f1c;
+    --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15171a; --surface:#1d2024; --surface-2:#25292e; --line:#33373d;
+  --text:#e8e6e1; --muted:#a2a6ad; --accent:#8db7e0; --accent-soft:#1f2c3a;
+  --new:#f0a374; --new-soft:#3a251a; --ok:#8fcf9a; --ok-soft:#1e3123;
+  --warn:#e8c06a; --warn-soft:#3a2f17; --err:#f19a90; --err-soft:#3d1f1c;
+  --shadow:none;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 64px}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:20px}
+h1{font-size:22px;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13px;margin-top:2px}
+.upd{font-size:13px;color:var(--muted);text-align:right}
+.upd b{color:var(--text);font-weight:600}
+.banner{border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;font-size:14px}
+.banner.err{background:var(--err-soft);color:var(--err)}
+.banner.warn{background:var(--warn-soft);color:var(--warn)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);
+  cursor:pointer;text-align:left;font:inherit;color:inherit}
+.kpi:hover{border-color:var(--accent)}
+.kpi .n{font-size:28px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi .l{color:var(--muted);font-size:13px}
+.kpi.hl .n{color:var(--new)}
+.filters{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;margin-bottom:8px}
+input,select{width:100%;font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);
+  border-radius:8px;padding:8px 10px;min-height:38px}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.count{color:var(--muted);font-size:13px;margin:6px 2px 12px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.linkbtn{background:none;border:0;color:var(--accent);font:inherit;cursor:pointer;padding:0}
+.list{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px}
+.card.done{opacity:.62}
+.top{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tag{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.tag.trib{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.tag.new{background:var(--new-soft);color:var(--new);font-weight:600}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}
+.proc{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:14px;font-weight:600;margin:8px 0 2px;
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap;word-break:break-all}
+.copy{font:12px system-ui,sans-serif;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:6px;padding:1px 7px;cursor:pointer}
+.orgao{color:var(--muted);font-size:13px}
+.partes{font-size:13px;margin-top:4px}
+.dates{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:13px;margin-top:8px;color:var(--muted)}
+.dates b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.btn{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);
+  border-radius:8px;padding:5px 12px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.texto{white-space:pre-wrap;font-size:14px;line-height:1.6;background:var(--surface-2);border-radius:8px;padding:12px 14px;margin-top:10px;
+  max-height:480px;overflow:auto;overflow-wrap:anywhere}
+mark{background:var(--warn-soft);color:inherit;padding:0 1px;border-radius:2px}
+.empty{text-align:center;color:var(--muted);padding:40px 16px;background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius)}
+.foot{margin-top:28px;color:var(--muted);font-size:12px}
+@media (max-width:760px){
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .filters{grid-template-columns:1fr 1fr}
+  .filters .q{grid-column:1/-1}
+  .upd{text-align:left}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Painel DJEN</h1>
+      <div class="sub" id="who"></div>
+    </div>
+    <div class="upd" id="upd"></div>
+  </header>
+  <div id="banners"></div>
+
+  <section class="kpis" aria-label="Resumo">
+    <button class="kpi hl" data-preset="pend"><div class="n" id="k-pend">0</div><div class="l">Pendentes de análise</div></button>
+    <button class="kpi" data-preset="hoje"><div class="n" id="k-hoje">0</div><div class="l">Disponibilizadas hoje</div></button>
+    <button class="kpi" data-preset="7d"><div class="n" id="k-7d">0</div><div class="l">Últimos 7 dias</div></button>
+    <button class="kpi" data-preset="all"><div class="n" id="k-all">0</div><div class="l">Total no histórico</div></button>
+  </section>
+
+  <section class="filters" aria-label="Filtros">
+    <input class="q" id="f-q" type="search" placeholder="Buscar processo, parte, órgão ou texto…" autocomplete="off">
+    <select id="f-trib"><option value="">Todos os tribunais</option></select>
+    <select id="f-status">
+      <option value="pend">Pendentes</option>
+      <option value="done">Tratadas</option>
+      <option value="all">Todas</option>
+    </select>
+    <select id="f-per">
+      <option value="0">Hoje</option>
+      <option value="7">7 dias</option>
+      <option value="30" selected>30 dias</option>
+      <option value="90">90 dias</option>
+      <option value="all">Todo o período</option>
+    </select>
+  </section>
+  <div class="count"><span id="count"></span><span><button class="linkbtn" id="mark-all">Marcar exibidas como tratadas</button></span></div>
+  <div class="list" id="list"></div>
+
+  <p class="foot">Publicação e início de prazo são <b>estimativas</b>: publicação no 1º dia útil seguinte à disponibilização e contagem a partir do dia útil seguinte (Lei 11.419/2006, art. 4º, §§ 3º e 4º; CPC, art. 224). O cálculo considera apenas feriados nacionais, Carnaval, Sexta-feira Santa e Corpus Christi. Não considera feriados locais, suspensões de expediente nem o recesso forense, e não substitui a conferência no sistema do tribunal. A marcação "tratada" fica salva apenas neste navegador.</p>
+</div>
+
+<script>
+const DADOS = /*__DADOS__*/null;
+(function(){
+  const $ = s => document.querySelector(s);
+  const D = DADOS || {comunicacoes:[], oabs:[], titular:"", atualizado_em:"", erro:"Painel ainda não gerado pelo coletor."};
+  const KEY = "painel-djen-tratadas";
+  const KEYF = "painel-djen-filtros";
+  const store = {
+    get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+    set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+  };
+  let tratadas = new Set(store.get(KEY, []));
+  const abertos = new Set();
+
+  const fmt = iso => { if(!iso) return "—"; const [y,m,d] = iso.slice(0,10).split("-"); return d && m && y ? `${d}/${m}/${y}` : iso; };
+  const fmtDT = iso => { if(!iso) return "—"; const t = new Date(iso); return isNaN(t) ? iso : t.toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}); };
+  const hojeISO = (() => { const t = new Date(); return new Date(t.getTime()-t.getTimezoneOffset()*60000).toISOString().slice(0,10); })();
+  const diasAtras = n => { const t = new Date(hojeISO+"T12:00:00"); t.setDate(t.getDate()-n); return t.toISOString().slice(0,10); };
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const norm = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+
+  // cabeçalho
+  $("#who").textContent = [D.titular, D.oabs && D.oabs.length ? "OAB " + D.oabs.join(", ") : ""].filter(Boolean).join(" · ");
+  $("#upd").innerHTML = `Última coleta: <b>${esc(fmtDT(D.atualizado_em))}</b>` +
+    (D.ultimo_sucesso && D.ultimo_sucesso !== D.atualizado_em ? `<br>Último sucesso: ${esc(fmtDT(D.ultimo_sucesso))}` : "") +
+    (D.novas_ultima_coleta ? `<br>${D.novas_ultima_coleta} nova(s) na última coleta` : "");
+  if (D.erro) $("#banners").innerHTML = `<div class="banner err"><b>Falha na última coleta:</b> ${esc(D.erro)} O painel mostra o histórico já salvo.</div>`;
+  else if (D.atualizado_em && (Date.now() - new Date(D.atualizado_em)) > 3*3600e3)
+    $("#banners").innerHTML = `<div class="banner warn">A última coleta foi há mais de 3 horas. Verifique se o agendamento está ativo e se o computador está ligado.</div>`;
+
+  const C = D.comunicacoes || [];
+  C.forEach(c => { c._busca = norm([c.processo, c.processo && c.processo.replace(/\D/g,""), c.tribunal, c.orgao, c.classe, c.tipo, (c.partes||[]).join(" "), c.texto].join(" ")); });
+
+  // tribunais
+  const tribs = [...new Set(C.map(c => c.tribunal).filter(Boolean))].sort();
+  $("#f-trib").insertAdjacentHTML("beforeend", tribs.map(t => `<option>${esc(t)}</option>`).join(""));
+
+  // filtros persistidos
+  const fs = store.get(KEYF, {});
+  if (fs.status) $("#f-status").value = fs.status;
+  if (fs.per) $("#f-per").value = fs.per;
+  if (fs.trib && tribs.includes(fs.trib)) $("#f-trib").value = fs.trib;
+
+  function kpis(){
+    $("#k-pend").textContent = C.filter(c => !tratadas.has(c.id)).length;
+    $("#k-hoje").textContent = C.filter(c => c.disponibilizacao === hojeISO).length;
+    $("#k-7d").textContent = C.filter(c => c.disponibilizacao >= diasAtras(7)).length;
+    $("#k-all").textContent = C.length;
+  }
+
+  function filtrados(){
+    const q = norm($("#f-q").value.trim());
+    const termos = q ? q.split(/\s+/) : [];
+    const trib = $("#f-trib").value, st = $("#f-status").value, per = $("#f-per").value;
+    const desde = per === "all" ? "" : diasAtras(+per);
+    return C.filter(c =>
+      (!trib || c.tribunal === trib) &&
+      (st === "all" || (st === "pend") !== tratadas.has(c.id)) &&
+      (!desde || c.disponibilizacao >= desde) &&
+      termos.every(t => c._busca.includes(t)));
+  }
+
+  function realce(txt){
+    const q = $("#f-q").value.trim();
+    let h = esc(txt);
+    if (!q) return h;
+    q.split(/\s+/).filter(t => t.length > 2).forEach(t => {
+      const re = new RegExp("(" + esc(t).replace(/[.*+?^${}()|[\]\\]/g,"\\$&") + ")", "gi");
+      h = h.replace(re, "<mark>$1</mark>");
+    });
+    return h;
+  }
+
+  function render(){
+    store.set(KEYF, {status:$("#f-status").value, per:$("#f-per").value, trib:$("#f-trib").value});
+    kpis();
+    const L = filtrados();
+    $("#count").textContent = `${L.length} comunicação(ões) exibida(s)`;
+    $("#mark-all").style.display = L.some(c => !tratadas.has(c.id)) ? "" : "none";
+    if (!L.length){
+      $("#list").innerHTML = `<div class="empty">${C.length ? "Nenhuma comunicação com esses filtros." : "Nenhuma comunicação no histórico ainda."}</div>`;
+      return;
+    }
+    const recente = Date.now() - 24*3600e3;
+    $("#list").innerHTML = L.map(c => {
+      const done = tratadas.has(c.id);
+      const nova = !done && c.capturado_em && new Date(c.capturado_em).getTime() > recente;
+      const aberto = abertos.has(c.id);
+      return `<article class="card${done ? " done" : ""}" data-id="${esc(c.id)}">
+        <div class="top">
+          <div class="meta">
+            <span class="tag trib">${esc(c.tribunal || "—")}</span>
+            ${c.tipo ? `<span class="tag">${esc(c.tipo)}</span>` : ""}
+            ${c.tipo_documento ? `<span class="tag">${esc(c.tipo_documento)}</span>` : ""}
+            ${nova ? `<span class="tag new">Nova</span>` : ""}
+            ${done ? `<span class="tag ok">Tratada</span>` : ""}
+          </div>
+          <span class="tag">Disponibilizada em ${esc(fmt(c.disponibilizacao))}</span>
+        </div>
+        <div class="proc">${esc(c.processo || "Processo não informado")}${c.processo ? ` <button class="copy" data-copy="${esc(c.processo)}">copiar</button>` : ""}</div>
+        <div class="orgao">${esc([c.orgao, c.classe].filter(Boolean).join(" · "))}</div>
+        ${c.partes && c.partes.length ? `<div class="partes">${realce(c.partes.join("; "))}</div>` : ""}
+        <div class="dates">
+          <span>Publicação (est.): <b>${esc(fmt(c.publicacao_estimada))}</b></span>
+          <span>Início do prazo (est.): <b>${esc(fmt(c.inicio_prazo_estimado))}</b></span>
+        </div>
+        <div class="actions">
+          <button class="btn" data-act="toggle">${aberto ? "Ocultar teor" : "Ver teor"}</button>
+          <button class="btn${done ? "" : " primary"}" data-act="done">${done ? "Reabrir" : "Marcar como tratada"}</button>
+          ${c.link ? `<a class="btn" href="${esc(c.link)}" target="_blank" rel="noopener noreferrer">Documento</a>` : ""}
+        </div>
+        ${aberto ? `<div class="texto">${realce(c.texto || "Teor não disponível.")}</div>` : ""}
+      </article>`;
+    }).join("");
+  }
+
+  $("#list").addEventListener("click", e => {
+    const cp = e.target.closest("[data-copy]");
+    if (cp){ navigator.clipboard && navigator.clipboard.writeText(cp.dataset.copy).then(() => { cp.textContent = "copiado"; setTimeout(() => cp.textContent = "copiar", 1200); }).catch(()=>{}); return; }
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const id = b.closest(".card").dataset.id;
+    if (b.dataset.act === "toggle") abertos.has(id) ? abertos.delete(id) : abertos.add(id);
+    if (b.dataset.act === "done"){ tratadas.has(id) ? tratadas.delete(id) : tratadas.add(id); store.set(KEY, [...tratadas]); }
+    render();
+  });
+  $("#mark-all").addEventListener("click", () => {
+    const L = filtrados().filter(c => !tratadas.has(c.id));
+    if (!L.length || !confirm(`Marcar ${L.length} comunicação(ões) como tratada(s)?`)) return;
+    L.forEach(c => tratadas.add(c.id)); store.set(KEY, [...tratadas]); render();
+  });
+  document.querySelectorAll(".kpi").forEach(k => k.addEventListener("click", () => {
+    const p = k.dataset.preset;
+    $("#f-q").value = ""; $("#f-trib").value = "";
+    if (p === "pend"){ $("#f-status").value = "pend"; $("#f-per").value = "all"; }
+    if (p === "hoje"){ $("#f-status").value = "all"; $("#f-per").value = "0"; }
+    if (p === "7d"){ $("#f-status").value = "all"; $("#f-per").value = "7"; }
+    if (p === "all"){ $("#f-status").value = "all"; $("#f-per").value = "all"; }
+    render();
+  }));
+  let tq; $("#f-q").addEventListener("input", () => { clearTimeout(tq); tq = setTimeout(render, 150); });
+  ["#f-trib","#f-status","#f-per"].forEach(s => $(s).addEventListener("change", render));
+
+  // recarrega a cada 10 min para pegar a coleta horária (não recarrega com teor aberto ou busca ativa)
+  setInterval(() => { if (!abertos.size && !$("#f-q").value) location.reload(); }, 10*60*1000);
+
+  render();
+})();
+</script>
+</body>
+</html>

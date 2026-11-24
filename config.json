@@ -1,0 +1,8 @@
+{
+  "titular": "Dr. Douglas Gonçalves Campanhã",
+  "oabs": [
+    {"numero": "350073", "uf": "SP"}
+  ],
+  "dias_carga_inicial": 30,
+  "dias_sobreposicao": 3
+}
